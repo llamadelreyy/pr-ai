@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { useDropzone } from 'react-dropzone';
-import { 
+import {
   Upload,
   Eye,
   BarChart3,
@@ -28,7 +28,13 @@ import {
   Activity,
   Filter,
   Search,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  Play,
+  FileSearch,
+  BookOpen,
+  Send,
+  ArrowLeft
 } from 'lucide-react';
 
 // Styled Components
@@ -273,9 +279,25 @@ const Input = styled.input`
   }
 `;
 
+const Select = styled.select`
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: white;
+  transition: border-color 0.2s;
+  
+  &:focus {
+    outline: none;
+    border-color: #2596be;
+    box-shadow: 0 0 0 3px rgba(37, 150, 190, 0.1);
+  }
+`;
+
 const Button = styled.button`
   width: ${props => props.$fullWidth ? '100%' : 'auto'};
-  background: ${props => props.$variant === 'secondary' ? 'white' : '#2596be'};
+  background: ${props => props.$variant === 'secondary' ? 'white' : props.$variant === 'danger' ? '#ef4444' : '#2596be'};
   color: ${props => props.$variant === 'secondary' ? '#2596be' : 'white'};
   border: ${props => props.$variant === 'secondary' ? '1px solid #2596be' : 'none'};
   padding: 0.75rem 1.5rem;
@@ -290,7 +312,11 @@ const Button = styled.button`
   transition: all 0.2s ease;
   
   &:hover {
-    background: ${props => props.$variant === 'secondary' ? '#f8fafc' : '#1e88e5'};
+    background: ${props => {
+      if (props.$variant === 'secondary') return '#f8fafc';
+      if (props.$variant === 'danger') return '#dc2626';
+      return '#1e88e5';
+    }};
     transform: translateY(-1px);
   }
   
@@ -308,39 +334,11 @@ const ErrorMessage = styled.div`
   text-align: center;
 `;
 
-const StepIndicator = styled.div`
-  display: flex;
-  justify-content: center;
-  margin-bottom: 3rem;
-  gap: 1rem;
-  flex-wrap: wrap;
-`;
-
-const Step = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border-radius: 6px;
-  background: ${props => props.$active ? '#2596be' : 'white'};
-  color: ${props => props.$active ? 'white' : '#6b7280'};
-  border: 2px solid ${props => props.$completed ? '#10b981' : props.$active ? '#2596be' : '#e5e7eb'};
-  transition: all 0.3s ease;
+const SuccessMessage = styled.div`
+  color: #059669;
   font-size: 0.875rem;
-  font-weight: 500;
-`;
-
-const StepNumber = styled.span`
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: ${props => props.$completed ? '#10b981' : props.$active ? 'white' : '#f3f4f6'};
-  color: ${props => props.$completed ? 'white' : props.$active ? '#2596be' : '#6b7280'};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 600;
+  margin-top: 0.5rem;
+  text-align: center;
 `;
 
 const DropZone = styled.div`
@@ -373,7 +371,7 @@ const TableHeader = styled.div`
   padding: 1rem 2rem;
   border-bottom: 1px solid #e5e7eb;
   display: flex;
-  justify-content: between;
+  justify-content: space-between;
   align-items: center;
   gap: 1rem;
 `;
@@ -387,7 +385,6 @@ const TableTitle = styled.h3`
 const TableActions = styled.div`
   display: flex;
   gap: 0.5rem;
-  margin-left: auto;
 `;
 
 const Table = styled.table`
@@ -466,42 +463,50 @@ const TagsContainer = styled.div`
   gap: 0.25rem;
 `;
 
-const ConfidenceContainer = styled.div`
-  display: flex;
-  flex-direction: column;
+const StatusBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
   gap: 0.25rem;
-`;
-
-const ConfidenceText = styled.span`
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
   font-size: 0.75rem;
   font-weight: 600;
-  color: ${props => {
-    if (props.$confidence >= 0.8) return '#166534';
-    if (props.$confidence >= 0.6) return '#d97706';
-    return '#991b1b';
-  }};
-`;
-
-const ConfidenceBar = styled.div`
-  width: 100%;
-  height: 8px;
-  background: #e5e7eb;
-  border-radius: 4px;
-  overflow: hidden;
-`;
-
-const ConfidenceFill = styled.div`
-  height: 100%;
   background: ${props => {
-    if (props.$confidence >= 0.8) return '#10b981';
-    if (props.$confidence >= 0.6) return '#f59e0b';
-    return '#ef4444';
+    switch(props.$status) {
+      case 'uploaded': return '#fef3c7';
+      case 'analyzed': return '#dbeafe';
+      case 'completed': return '#dcfce7';
+      default: return '#f3f4f6';
+    }
   }};
-  width: ${props => props.$confidence * 100}%;
-  transition: width 0.3s ease;
+  color: ${props => {
+    switch(props.$status) {
+      case 'uploaded': return '#92400e';
+      case 'analyzed': return '#1e40af';
+      case 'completed': return '#166534';
+      default: return '#374151';
+    }
+  }};
 `;
 
-const Stats = styled.div`
+const LoadingSpinner = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 2rem 0;
+  color: #6b7280;
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+`;
+
+const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1.5rem;
@@ -530,6 +535,38 @@ const StatLabel = styled.div`
   font-weight: 500;
 `;
 
+const DocumentCard = styled.div`
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  transition: box-shadow 0.2s;
+  
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+`;
+
+const DocumentHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+`;
+
+const DocumentTitle = styled.h3`
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+`;
+
+const DocumentMeta = styled.div`
+  color: #6b7280;
+  font-size: 0.875rem;
+`;
+
 const StreamingContainer = styled.div`
   background: #f8fafc;
   border-radius: 8px;
@@ -548,24 +585,30 @@ const StreamingRow = styled.div`
   background: white;
 `;
 
-const LoadingSpinner = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin: 2rem 0;
-  color: #6b7280;
+const StreamingText = styled.div`
+  color: #10b981;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
 `;
 
-const ButtonGroup = styled.div`
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  margin-top: 2rem;
-  flex-wrap: wrap;
-`;
+// Debug: Log the API URL being used
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8011';
+console.log('Frontend is using API_BASE:', API_BASE);
+console.log('Environment variable REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
 
-const API_BASE = 'http://localhost:8011';
+// Alternative: Try to detect if we're in a port-forwarded environment
+const isPortForwarded = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+const FALLBACK_API_BASE = isPortForwarded
+  ? `http://${window.location.hostname}:8011`
+  : 'http://localhost:8011';
+
+const FINAL_API_BASE = process.env.REACT_APP_API_URL || FALLBACK_API_BASE;
+console.log('Final API_BASE being used:', FINAL_API_BASE);
 
 function App() {
   // Authentication state
@@ -578,38 +621,59 @@ function App() {
   const [activeNav, setActiveNav] = useState('dashboard');
   
   // Application state
-  const [currentStep, setCurrentStep] = useState(1);
-  const [sessionId, setSessionId] = useState(null);
-  const [uploadedData, setUploadedData] = useState(null);
-  const [analyzedData, setAnalyzedData] = useState(null);
-  const [finalData, setFinalData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState(null);
-  const [topicStats, setTopicStats] = useState(null);
-  const [averageConfidence, setAverageConfidence] = useState(null);
-  const [streamingMode, setStreamingMode] = useState(false);
-  const [streamingData, setStreamingData] = useState([]);
-  const [streamingStatus, setStreamingStatus] = useState("");
+  const [documents, setDocuments] = useState([]);
+  const [selectedDocument, setSelectedDocument] = useState('');
+  const [currentDocumentData, setCurrentDocumentData] = useState(null);
+  const [analysisResults, setAnalysisResults] = useState(null);
+  const [responses, setResponses] = useState(null);
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState(''); // 'success' or 'error'
+  
+  // Streaming states
   const [analysisStreamingMode, setAnalysisStreamingMode] = useState(false);
   const [analysisStreamingData, setAnalysisStreamingData] = useState([]);
   const [analysisStreamingStatus, setAnalysisStreamingStatus] = useState("");
+  const [responseStreamingMode, setResponseStreamingMode] = useState(false);
+  const [responseStreamingData, setResponseStreamingData] = useState([]);
+  const [responseStreamingStatus, setResponseStreamingStatus] = useState("");
 
   // Check for saved authentication on mount
   useEffect(() => {
     const savedAuth = localStorage.getItem('meioAuth');
     if (savedAuth === 'true') {
       setIsAuthenticated(true);
+      loadDocuments();
     }
   }, []);
+
+  const showMessage = (text, type = 'success') => {
+    setMessage(text);
+    setMessageType(type);
+    setTimeout(() => {
+      setMessage('');
+      setMessageType('');
+    }, 3000);
+  };
+
+  const loadDocuments = async () => {
+    try {
+      // Load from localStorage since backend uses sessions
+      const existingSessions = JSON.parse(localStorage.getItem('meioSessions') || '[]');
+      setDocuments(existingSessions);
+    } catch (error) {
+      console.error('Error loading documents:', error);
+    }
+  };
 
   const handleLogin = (e) => {
     e.preventDefault();
     setLoginError('');
     
-    // Dummy credentials
     if (loginForm.username === 'admin' && loginForm.password === 'meio2024') {
       setIsAuthenticated(true);
       localStorage.setItem('meioAuth', 'true');
+      loadDocuments();
     } else {
       setLoginError('Invalid credentials. Use admin/meio2024');
     }
@@ -618,12 +682,12 @@ function App() {
   const handleLogout = () => {
     setIsAuthenticated(false);
     localStorage.removeItem('meioAuth');
-    setCurrentStep(1);
-    setSessionId(null);
-    setUploadedData(null);
-    setAnalyzedData(null);
-    setFinalData(null);
-    setStats(null);
+    setActiveNav('dashboard');
+    setDocuments([]);
+    setSelectedDocument('');
+    setCurrentDocumentData(null);
+    setAnalysisResults(null);
+    setResponses(null);
   };
 
   const onDrop = async (acceptedFiles) => {
@@ -635,15 +699,28 @@ function App() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await axios.post(`${API_BASE}/upload`, formData, {
+      const response = await axios.post(`${FINAL_API_BASE}/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      setSessionId(response.data.session_id);
-      setUploadedData(response.data);
-      setCurrentStep(2);
+      showMessage(`Document "${file.name}" uploaded successfully!`);
+      // Store the session data with session_id from backend
+      const sessionData = {
+        id: response.data.session_id,
+        session_id: response.data.session_id, // Keep session_id for backend calls
+        filename: response.data.filename,
+        row_count: response.data.row_count,
+        upload_date: new Date().toISOString(),
+        status: 'uploaded'
+      };
+      
+      const existingSessions = JSON.parse(localStorage.getItem('meioSessions') || '[]');
+      existingSessions.push(sessionData);
+      localStorage.setItem('meioSessions', JSON.stringify(existingSessions));
+      
+      loadDocuments();
     } catch (error) {
-      alert('Error uploading file: ' + (error.response?.data?.detail || error.message));
+      showMessage('Error uploading file: ' + (error.response?.data?.detail || error.message), 'error');
     }
     setLoading(false);
   };
@@ -657,32 +734,90 @@ function App() {
     multiple: false
   });
 
-  const viewData = async () => {
+  const viewDocument = async (documentId) => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE}/data/${sessionId}`);
-      setUploadedData({...uploadedData, data: response.data.data});
-      setCurrentStep(3);
+      const response = await axios.get(`${FINAL_API_BASE}/data/${documentId}`);
+      setCurrentDocumentData({
+        id: documentId,
+        ...response.data,
+        columns: Object.keys(response.data.data[0] || {}),
+        row_count: response.data.data.length
+      });
+      setActiveNav('data-viewer');
     } catch (error) {
-      alert('Error loading data: ' + (error.response?.data?.detail || error.message));
+      showMessage('Error loading document: ' + (error.response?.data?.detail || error.message), 'error');
     }
     setLoading(false);
   };
 
-  const analyzeDataStreaming = async () => {
+  const deleteDocument = async (documentId) => {
+    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    
+    setLoading(true);
+    try {
+      // Remove from localStorage since backend uses sessions
+      const existingSessions = JSON.parse(localStorage.getItem('meioSessions') || '[]');
+      const updatedSessions = existingSessions.filter(doc => doc.id !== documentId);
+      localStorage.setItem('meioSessions', JSON.stringify(updatedSessions));
+      
+      showMessage('Document deleted successfully!');
+      loadDocuments();
+      if (currentDocumentData?.id === documentId) {
+        setCurrentDocumentData(null);
+      }
+    } catch (error) {
+      showMessage('Error deleting document: ' + error.message, 'error');
+    }
+    setLoading(false);
+  };
+
+  const analyzeDocument = async () => {
+    if (!selectedDocument) {
+      showMessage('Please select a document to analyze', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(`${FINAL_API_BASE}/analyze`, {
+        session_id: selectedDocument
+      });
+      setAnalysisResults(response.data);
+      showMessage('Document analyzed successfully!');
+      
+      // Update status in localStorage
+      const existingSessions = JSON.parse(localStorage.getItem('meioSessions') || '[]');
+      const updatedSessions = existingSessions.map(doc =>
+        doc.id === selectedDocument ? {...doc, status: 'analyzed'} : doc
+      );
+      localStorage.setItem('meioSessions', JSON.stringify(updatedSessions));
+      loadDocuments();
+    } catch (error) {
+      showMessage('Error analyzing document: ' + (error.response?.data?.detail || error.message), 'error');
+    }
+    setLoading(false);
+  };
+
+  const analyzeDocumentStreaming = async () => {
+    if (!selectedDocument) {
+      showMessage('Please select a document to analyze', 'error');
+      return;
+    }
+
     setAnalysisStreamingMode(true);
     setAnalysisStreamingData([]);
     setAnalysisStreamingStatus("Starting sentiment analysis...");
     setLoading(true);
     
     try {
-      const response = await fetch(`${API_BASE}/analyze-streaming`, {
+      const response = await fetch(`${FINAL_API_BASE}/analyze-streaming`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          session_id: sessionId
+          session_id: selectedDocument
         })
       });
 
@@ -729,7 +864,7 @@ function App() {
                 case 'topic':
                   setAnalysisStreamingData(prev => prev.map(item =>
                     item.index === data.index
-                      ? {...item, topics: extractDetailedTopics(data.topic)}
+                      ? {...item, topics: data.topic.split(',').map(t => t.trim())}
                       : item
                   ));
                   break;
@@ -737,7 +872,7 @@ function App() {
                 case 'row_complete':
                   setAnalysisStreamingData(prev => prev.map(item =>
                     item.index === data.index
-                      ? {...item, sentiment: data.sentiment, confidence: data.confidence, topics: extractDetailedTopics(data.topic), complete: true}
+                      ? {...item, sentiment: data.sentiment, confidence: data.confidence, topics: data.topic.split(',').map(t => t.trim()), complete: true}
                       : item
                   ));
                   break;
@@ -751,16 +886,14 @@ function App() {
                   break;
                   
                 case 'complete_all':
-                  setAnalyzedData(data.analyzed_data);
-                  setStats(data.statistics);
-                  setTopicStats(data.topic_statistics);
-                  setAverageConfidence(data.average_confidence);
+                  setAnalysisResults(data);
                   setAnalysisStreamingStatus("Sentiment analysis completed!");
+                  showMessage('Document analyzed successfully with streaming!');
+                  loadDocuments(); // Refresh to update status
                   setLoading(false);
                   setTimeout(() => {
                     setAnalysisStreamingMode(false);
-                    setCurrentStep(4);
-                  }, 2000);
+                  }, 3000);
                   return;
               }
             } catch (error) {
@@ -773,25 +906,72 @@ function App() {
     } catch (error) {
       console.error('Streaming error:', error);
       setAnalysisStreamingStatus("Error occurred during streaming: " + error.message);
+      showMessage('Error during streaming analysis: ' + error.message, 'error');
       setLoading(false);
       setAnalysisStreamingMode(false);
     }
   };
 
-  const generateCommentsStreaming = async () => {
-    setStreamingMode(true);
-    setStreamingData([]);
-    setStreamingStatus("Starting comment generation...");
+  const generateResponses = async () => {
+    if (!selectedDocument) {
+      showMessage('Please select a document to generate responses for', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(`${FINAL_API_BASE}/mitigate`, {
+        session_id: selectedDocument
+      });
+      
+      // Format the response data to match expected structure
+      const formattedResponses = {
+        responses: response.data.data_with_comments.map((item, idx) => ({
+          original_text: Object.values(item).find(val =>
+            typeof val === 'string' && val.length > 10 &&
+            !['sentiment', 'confidence', 'topic', 'generated_comment'].includes(val)
+          ) || 'No text content',
+          sentiment: item.sentiment,
+          topics: Array.isArray(item.topics) ? item.topics : [item.topic || 'General'],
+          generated_comment: item.generated_comment
+        }))
+      };
+      
+      setResponses(formattedResponses);
+      showMessage('Responses generated successfully!');
+      
+      // Update status in localStorage
+      const existingSessions = JSON.parse(localStorage.getItem('meioSessions') || '[]');
+      const updatedSessions = existingSessions.map(doc =>
+        doc.id === selectedDocument ? {...doc, status: 'completed'} : doc
+      );
+      localStorage.setItem('meioSessions', JSON.stringify(updatedSessions));
+      loadDocuments();
+    } catch (error) {
+      showMessage('Error generating responses: ' + (error.response?.data?.detail || error.message), 'error');
+    }
+    setLoading(false);
+  };
+
+  const generateResponsesStreaming = async () => {
+    if (!selectedDocument) {
+      showMessage('Please select a document to generate responses for', 'error');
+      return;
+    }
+
+    setResponseStreamingMode(true);
+    setResponseStreamingData([]);
+    setResponseStreamingStatus("Starting response generation...");
     setLoading(true);
     
     try {
-      const response = await fetch(`${API_BASE}/mitigate-streaming`, {
+      const response = await fetch(`${FINAL_API_BASE}/mitigate-streaming`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          session_id: sessionId
+          session_id: selectedDocument
         })
       });
 
@@ -816,8 +996,8 @@ function App() {
               
               switch(data.type) {
                 case 'row_start':
-                  setStreamingStatus(`Processing row ${data.index + 1}/${data.total}: ${data.text}...`);
-                  setStreamingData(prev => [...prev, {
+                  setResponseStreamingStatus(`Processing row ${data.index + 1}/${data.total}: ${data.text}...`);
+                  setResponseStreamingData(prev => [...prev, {
                     index: data.index,
                     text: data.text,
                     sentiment: data.sentiment,
@@ -828,23 +1008,15 @@ function App() {
                   break;
                   
                 case 'word':
-                  setStreamingData(prev => prev.map(item =>
+                  setResponseStreamingData(prev => prev.map(item =>
                     item.index === data.index
                       ? {...item, comment: data.complete}
                       : item
                   ));
                   break;
                   
-                case 'complete':
-                  setStreamingData(prev => prev.map(item =>
-                    item.index === data.index
-                      ? {...item, comment: data.comment, complete: true}
-                      : item
-                  ));
-                  break;
-                  
                 case 'row_complete':
-                  setStreamingData(prev => prev.map(item =>
+                  setResponseStreamingData(prev => prev.map(item =>
                     item.index === data.index
                       ? {...item, comment: data.comment, complete: true}
                       : item
@@ -852,7 +1024,7 @@ function App() {
                   break;
                   
                 case 'error':
-                  setStreamingData(prev => prev.map(item =>
+                  setResponseStreamingData(prev => prev.map(item =>
                     item.index === data.index
                       ? {...item, comment: `Error: ${data.error}`, complete: true}
                       : item
@@ -860,13 +1032,42 @@ function App() {
                   break;
                   
                 case 'complete_all':
-                  setFinalData(data.data);
-                  setStreamingStatus("Comment generation completed!");
+                  // Extract text content from each item for proper display
+                  const formattedData = data.data.map((item, idx) => {
+                    // Find the main text content (not generated_comment, sentiment, etc.)
+                    let originalText = '';
+                    for (const [key, value] of Object.entries(item)) {
+                      if (key !== 'generated_comment' && key !== 'sentiment' && key !== 'confidence' && key !== 'topic' &&
+                          typeof value === 'string' && value.length > 10) {
+                        originalText = value;
+                        break;
+                      }
+                    }
+                    
+                    return {
+                      original_text: originalText || 'No text content',
+                      sentiment: item.sentiment || 'neutral',
+                      topics: Array.isArray(item.topics) ? item.topics : (item.topic ? item.topic.split(',').map(t => t.trim()) : ['General']),
+                      generated_comment: item.generated_comment || 'No comment generated'
+                    };
+                  });
+                  
+                  setResponses({
+                    responses: formattedData
+                  });
+                  setResponseStreamingStatus("Response generation completed!");
+                  showMessage('Responses generated successfully with streaming!');
+                  // Update status in localStorage
+                  const existingSessions = JSON.parse(localStorage.getItem('meioSessions') || '[]');
+                  const updatedSessions = existingSessions.map(doc =>
+                    doc.id === selectedDocument ? {...doc, status: 'completed'} : doc
+                  );
+                  localStorage.setItem('meioSessions', JSON.stringify(updatedSessions));
+                  loadDocuments();
                   setLoading(false);
                   setTimeout(() => {
-                    setStreamingMode(false);
-                    setCurrentStep(5);
-                  }, 2000);
+                    setResponseStreamingMode(false);
+                  }, 3000);
                   return;
               }
             } catch (error) {
@@ -878,17 +1079,23 @@ function App() {
       
     } catch (error) {
       console.error('Streaming error:', error);
-      setStreamingStatus("Error occurred during streaming: " + error.message);
+      setResponseStreamingStatus("Error occurred during streaming: " + error.message);
+      showMessage('Error during streaming response generation: ' + error.message, 'error');
       setLoading(false);
-      setStreamingMode(false);
+      setResponseStreamingMode(false);
     }
   };
 
   const generateReport = async () => {
+    if (!selectedDocument) {
+      showMessage('Please select a document to generate report for', 'error');
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await axios.post(`${API_BASE}/generate-report`, {
-        session_id: sessionId
+      const response = await axios.post(`${FINAL_API_BASE}/generate-report`, {
+        session_id: selectedDocument
       }, {
         responseType: 'blob'
       });
@@ -897,17 +1104,41 @@ function App() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `MEIO_Sentiment_Report_${new Date().toISOString().slice(0,10)}.pptx`;
+      
+      // Extract filename from response headers or use default
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = `MEIO_Report_${new Date().toISOString().slice(0,10)}.pptx`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      setCurrentStep(6);
+      showMessage('Report generated and downloaded successfully!');
     } catch (error) {
-      alert('Error generating report: ' + (error.response?.data?.detail || error.message));
+      showMessage('Error generating report: ' + (error.response?.data?.detail || error.message), 'error');
     }
     setLoading(false);
+  };
+
+  const getPageTitle = () => {
+    switch (activeNav) {
+      case 'dashboard': return 'Dashboard Overview';
+      case 'data-upload': return 'Data Upload';
+      case 'data-viewer': return 'Data Viewer';
+      case 'data-analysis': return 'Data Analysis';
+      case 'response-generation': return 'Response Generation';
+      case 'report-generation': return 'Report Generation';
+      case 'user-management': return 'User Management';
+      default: return 'MEIO Sentiment Analysis System';
+    }
   };
 
   const getSentimentIcon = (sentiment) => {
@@ -916,59 +1147,6 @@ function App() {
       case 'negative': return <Frown size={14} />;
       case 'neutral': return <Minus size={14} />;
       default: return <Minus size={14} />;
-    }
-  };
-
-  const resetWorkflow = () => {
-    setCurrentStep(1);
-    setSessionId(null);
-    setUploadedData(null);
-    setAnalyzedData(null);
-    setFinalData(null);
-    setStats(null);
-    setActiveNav('dashboard');
-  };
-
-  // Enhanced topic extraction function
-  const extractDetailedTopics = (topicString) => {
-    if (!topicString) return ['General'];
-    
-    // Split by common separators and clean up
-    const topics = topicString
-      .split(/[,;|&+]/)
-      .map(topic => topic.trim())
-      .filter(topic => topic.length > 0)
-      .slice(0, 4); // Limit to 4 topics max
-    
-    return topics.length > 0 ? topics : ['General'];
-  };
-
-  // Enhanced confidence calculation
-  const calculateEnhancedConfidence = (confidence, textLength = 50, sentimentStrength = 1) => {
-    let baseConfidence = parseFloat(confidence) || 0.5;
-    
-    // Adjust based on text length (longer texts might have more reliable analysis)
-    const lengthFactor = Math.min(textLength / 100, 1.2);
-    
-    // Adjust based on sentiment strength (stronger sentiments might be more confident)
-    const strengthFactor = sentimentStrength * 0.1;
-    
-    // Calculate enhanced confidence
-    let enhancedConfidence = baseConfidence * lengthFactor + strengthFactor;
-    
-    // Ensure confidence stays within bounds
-    enhancedConfidence = Math.max(0.1, Math.min(1.0, enhancedConfidence));
-    
-    return enhancedConfidence;
-  };
-
-  const getPageTitle = () => {
-    switch (activeNav) {
-      case 'dashboard': return 'Sentiment Analysis Dashboard';
-      case 'data': return 'Data Management';
-      case 'analysis': return 'Analysis Results';
-      case 'settings': return 'System Settings';
-      default: return 'Sentiment Analysis System';
     }
   };
 
@@ -1043,8 +1221,8 @@ function App() {
         </SidebarHeader>
         
         <SidebarNav>
-          <NavItem
-            $active={activeNav === 'dashboard'}
+          <NavItem 
+            $active={activeNav === 'dashboard'} 
             $collapsed={sidebarCollapsed}
             onClick={() => setActiveNav('dashboard')}
           >
@@ -1052,40 +1230,58 @@ function App() {
             <span>Dashboard</span>
           </NavItem>
           
-          <NavItem
-            $active={activeNav === 'data'}
+          <NavItem 
+            $active={activeNav === 'data-upload'} 
             $collapsed={sidebarCollapsed}
-            onClick={() => setActiveNav('data')}
+            onClick={() => setActiveNav('data-upload')}
           >
-            <Database size={20} />
+            <Upload size={20} />
             <span>Data Upload</span>
           </NavItem>
           
-          <NavItem
-            $active={activeNav === 'analysis'}
+          <NavItem 
+            $active={activeNav === 'data-viewer'} 
             $collapsed={sidebarCollapsed}
-            onClick={() => setActiveNav('analysis')}
+            onClick={() => setActiveNav('data-viewer')}
           >
-            <Activity size={20} />
-            <span>Analysis</span>
+            <FileSearch size={20} />
+            <span>Data Viewer</span>
           </NavItem>
           
-          <NavItem
-            $active={activeNav === 'users'}
+          <NavItem 
+            $active={activeNav === 'data-analysis'} 
             $collapsed={sidebarCollapsed}
-            onClick={() => setActiveNav('users')}
+            onClick={() => setActiveNav('data-analysis')}
+          >
+            <BarChart3 size={20} />
+            <span>Data Analysis</span>
+          </NavItem>
+          
+          <NavItem 
+            $active={activeNav === 'response-generation'} 
+            $collapsed={sidebarCollapsed}
+            onClick={() => setActiveNav('response-generation')}
+          >
+            <Send size={20} />
+            <span>Response Generation</span>
+          </NavItem>
+          
+          <NavItem 
+            $active={activeNav === 'report-generation'} 
+            $collapsed={sidebarCollapsed}
+            onClick={() => setActiveNav('report-generation')}
+          >
+            <BookOpen size={20} />
+            <span>Report Generation</span>
+          </NavItem>
+          
+          <NavItem 
+            $active={activeNav === 'user-management'} 
+            $collapsed={sidebarCollapsed}
+            onClick={() => setActiveNav('user-management')}
           >
             <Users size={20} />
-            <span>Users</span>
-          </NavItem>
-          
-          <NavItem
-            $active={activeNav === 'settings'}
-            $collapsed={sidebarCollapsed}
-            onClick={() => setActiveNav('settings')}
-          >
-            <Settings size={20} />
-            <span>Settings</span>
+            <span>User Management</span>
           </NavItem>
         </SidebarNav>
       </Sidebar>
@@ -1104,141 +1300,256 @@ function App() {
         </Header>
         
         <Content>
-          {(activeNav === 'dashboard' || activeNav === 'data' || activeNav === 'analysis') && (
-            <>
-              <StepIndicator>
-                <Step $active={currentStep === 1} $completed={currentStep > 1}>
-                  <StepNumber $active={currentStep === 1} $completed={currentStep > 1}>
-                    {currentStep > 1 ? <CheckCircle size={16} /> : '1'}
-                  </StepNumber>
-                  Upload Data
-                </Step>
-                <Step $active={currentStep === 2} $completed={currentStep > 2}>
-                  <StepNumber $active={currentStep === 2} $completed={currentStep > 2}>
-                    {currentStep > 2 ? <CheckCircle size={16} /> : '2'}
-                  </StepNumber>
-                  View Data
-                </Step>
-                <Step $active={currentStep === 3} $completed={currentStep > 3}>
-                  <StepNumber $active={currentStep === 3} $completed={currentStep > 3}>
-                    {currentStep > 3 ? <CheckCircle size={16} /> : '3'}
-                  </StepNumber>
-                  Analyze
-                </Step>
-                <Step $active={currentStep === 4} $completed={currentStep > 4}>
-                  <StepNumber $active={currentStep === 4} $completed={currentStep > 4}>
-                    {currentStep > 4 ? <CheckCircle size={16} /> : '4'}
-                  </StepNumber>
-                  Generate Reports
-                </Step>
-                <Step $active={currentStep === 5} $completed={currentStep > 5}>
-                  <StepNumber $active={currentStep === 5} $completed={currentStep > 5}>
-                    {currentStep > 5 ? <CheckCircle size={16} /> : '5'}
-                  </StepNumber>
-                  Download
-                </Step>
-              </StepIndicator>
+          {message && (
+            <Card style={{marginBottom: '1rem', background: messageType === 'error' ? '#fee2e2' : '#dcfce7', border: messageType === 'error' ? '1px solid #fca5a5' : '1px solid #86efac'}}>
+              <div style={{color: messageType === 'error' ? '#991b1b' : '#166534', fontWeight: '500'}}>
+                {message}
+              </div>
+            </Card>
+          )}
 
-              {loading && (
-                <LoadingSpinner>
-                  <Loader className="animate-spin" size={24} />
-                  Processing...
-                </LoadingSpinner>
-              )}
+          {loading && (
+            <LoadingSpinner>
+              <Loader className="animate-spin" size={24} />
+              Processing...
+            </LoadingSpinner>
+          )}
 
-              {/* Step 1: Upload */}
-              {currentStep === 1 && (
+          {/* Dashboard */}
+          {activeNav === 'dashboard' && (
+            <div>
+              <StatsGrid>
+                <StatCard>
+                  <StatNumber color="#2596be">{documents.length}</StatNumber>
+                  <StatLabel>Total Documents</StatLabel>
+                </StatCard>
+                <StatCard>
+                  <StatNumber color="#10b981">{documents.filter(d => d.status === 'completed').length}</StatNumber>
+                  <StatLabel>Completed Analysis</StatLabel>
+                </StatCard>
+                <StatCard>
+                  <StatNumber color="#f59e0b">{documents.filter(d => d.status === 'analyzed').length}</StatNumber>
+                  <StatLabel>Awaiting Response</StatLabel>
+                </StatCard>
+                <StatCard>
+                  <StatNumber color="#ef4444">{documents.filter(d => d.status === 'uploaded').length}</StatNumber>
+                  <StatLabel>Pending Analysis</StatLabel>
+                </StatCard>
+              </StatsGrid>
+
+              <Card>
+                <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Recent Documents</h2>
+                {documents.length === 0 ? (
+                  <p style={{color: '#6b7280', textAlign: 'center', padding: '2rem'}}>
+                    No documents uploaded yet. Start by uploading a document.
+                  </p>
+                ) : (
+                  documents.slice(0, 5).map(doc => (
+                    <DocumentCard key={doc.id}>
+                      <DocumentHeader>
+                        <div>
+                          <DocumentTitle>{doc.filename}</DocumentTitle>
+                          <DocumentMeta>
+                            Uploaded: {new Date(doc.upload_date).toLocaleDateString()} |
+                            Rows: {doc.row_count} |
+                            Status: <StatusBadge $status={doc.status}>{doc.status}</StatusBadge>
+                          </DocumentMeta>
+                        </div>
+                        <div style={{display: 'flex', gap: '0.5rem'}}>
+                          <Button $variant="secondary" onClick={() => viewDocument(doc.id)}>
+                            <Eye size={16} />
+                            View
+                          </Button>
+                        </div>
+                      </DocumentHeader>
+                    </DocumentCard>
+                  ))
+                )}
+              </Card>
+            </div>
+          )}
+
+          {/* Data Upload */}
+          {activeNav === 'data-upload' && (
+            <Card>
+              <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Upload New Document</h2>
+              <DropZone {...getRootProps()} $isDragActive={isDragActive}>
+                <input {...getInputProps()} />
+                <Upload size={48} style={{margin: '0 auto 1rem', color: '#2596be'}} />
+                <h3 style={{color: '#1f2937', marginBottom: '0.5rem'}}>Drop your CSV or XLSX file here</h3>
+                <p style={{color: '#6b7280', fontSize: '0.875rem'}}>
+                  Or click to select file (Max 13,000 rows supported)
+                </p>
+              </DropZone>
+
+              <div style={{marginTop: '2rem'}}>
+                <h3 style={{marginBottom: '1rem', color: '#1f2937'}}>Upload History</h3>
+                {documents.length === 0 ? (
+                  <p style={{color: '#6b7280', textAlign: 'center', padding: '2rem'}}>
+                    No documents uploaded yet.
+                  </p>
+                ) : (
+                  documents.map(doc => (
+                    <DocumentCard key={doc.id}>
+                      <DocumentHeader>
+                        <div>
+                          <DocumentTitle>{doc.filename}</DocumentTitle>
+                          <DocumentMeta>
+                            Uploaded: {new Date(doc.upload_date).toLocaleDateString()} |
+                            Rows: {doc.row_count} |
+                            Status: <StatusBadge $status={doc.status}>{doc.status}</StatusBadge>
+                          </DocumentMeta>
+                        </div>
+                        <div style={{display: 'flex', gap: '0.5rem'}}>
+                          <Button $variant="secondary" onClick={() => viewDocument(doc.id)}>
+                            <Eye size={16} />
+                            View
+                          </Button>
+                          <Button $variant="danger" onClick={() => deleteDocument(doc.id)}>
+                            <Trash2 size={16} />
+                            Delete
+                          </Button>
+                        </div>
+                      </DocumentHeader>
+                    </DocumentCard>
+                  ))
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* Data Viewer */}
+          {activeNav === 'data-viewer' && (
+            <div>
+              {!currentDocumentData ? (
                 <Card>
-                  <h2 style={{marginBottom: '1.5rem', textAlign: 'center', color: '#1f2937'}}>Upload Data File</h2>
-                  <DropZone {...getRootProps()} $isDragActive={isDragActive}>
-                    <input {...getInputProps()} />
-                    <Upload size={48} style={{margin: '0 auto 1rem', color: '#2596be'}} />
-                    <h3 style={{color: '#1f2937', marginBottom: '0.5rem'}}>Drop your CSV or XLSX file here</h3>
-                    <p style={{color: '#6b7280', fontSize: '0.875rem'}}>
-                      Or click to select file (Max 13,000 rows supported)
+                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Select Document to View</h2>
+                  {documents.length === 0 ? (
+                    <p style={{color: '#6b7280', textAlign: 'center', padding: '2rem'}}>
+                      No documents available. Upload a document first.
                     </p>
-                  </DropZone>
+                  ) : (
+                    documents.map(doc => (
+                      <DocumentCard key={doc.id}>
+                        <DocumentHeader>
+                          <div>
+                            <DocumentTitle>{doc.filename}</DocumentTitle>
+                            <DocumentMeta>
+                              Uploaded: {new Date(doc.upload_date).toLocaleDateString()} |
+                              Rows: {doc.row_count} |
+                              Status: <StatusBadge $status={doc.status}>{doc.status}</StatusBadge>
+                            </DocumentMeta>
+                          </div>
+                          <Button onClick={() => viewDocument(doc.id)}>
+                            <Eye size={16} />
+                            View Data
+                          </Button>
+                        </DocumentHeader>
+                      </DocumentCard>
+                    ))
+                  )}
                 </Card>
-              )}
+              ) : (
+                <div>
+                  <Card>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+                      <h2 style={{color: '#1f2937', margin: 0}}>{currentDocumentData.filename}</h2>
+                      <Button $variant="secondary" onClick={() => setCurrentDocumentData(null)}>
+                        <ArrowLeft size={16} />
+                        Back to List
+                      </Button>
+                    </div>
+                    
+                    <DocumentMeta style={{marginBottom: '1.5rem'}}>
+                      Uploaded: {new Date(currentDocumentData.upload_date).toLocaleDateString()} |
+                      Rows: {currentDocumentData.row_count} |
+                      Columns: {currentDocumentData.columns?.length}
+                    </DocumentMeta>
+                  </Card>
 
-              {/* Step 2: View Data */}
-              {currentStep === 2 && uploadedData && (
-                <Card>
-                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Data Preview</h2>
-                  <div style={{marginBottom: '1rem', color: '#6b7280'}}>
-                    <strong>File:</strong> {uploadedData.filename} |
-                    <strong> Rows:</strong> {uploadedData.row_count} |
-                    <strong> Columns:</strong> {uploadedData.columns?.join(', ')}
-                  </div>
-                  
-                  {uploadedData.preview && (
-                    <TableContainer>
-                      <TableHeader>
-                        <TableTitle>Data Preview (First 5 rows)</TableTitle>
-                      </TableHeader>
-                      <Table>
-                        <thead>
-                          <tr>
-                            {uploadedData.columns?.map(col => (
-                              <Th key={col}>{col}</Th>
+                  <TableContainer>
+                    <TableHeader>
+                      <TableTitle>Document Data ({currentDocumentData.row_count} rows)</TableTitle>
+                      <TableActions>
+                        <Button $variant="secondary" style={{padding: '0.5rem'}}>
+                          <Filter size={16} />
+                        </Button>
+                        <Button $variant="secondary" style={{padding: '0.5rem'}}>
+                          <Search size={16} />
+                        </Button>
+                      </TableActions>
+                    </TableHeader>
+                    <Table>
+                      <thead>
+                        <tr>
+                          {currentDocumentData.columns?.map(col => (
+                            <Th key={col}>{col}</Th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {currentDocumentData.data?.slice(0, 50).map((row, idx) => (
+                          <tr key={idx}>
+                            {currentDocumentData.columns?.map(col => (
+                              <Td key={col} title={row[col]}>
+                                {String(row[col] || '').slice(0, 100)}
+                                {String(row[col] || '').length > 100 ? '...' : ''}
+                              </Td>
                             ))}
                           </tr>
-                        </thead>
-                        <tbody>
-                          {uploadedData.preview.map((row, idx) => (
-                            <tr key={idx}>
-                              {uploadedData.columns?.map(col => (
-                                <Td key={col} title={row[col]}>
-                                  {String(row[col] || '').slice(0, 50)}
-                                  {String(row[col] || '').length > 50 ? '...' : ''}
-                                </Td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </Table>
-                    </TableContainer>
-                  )}
-                  
-                  <ButtonGroup>
-                    <Button $variant="secondary" onClick={resetWorkflow}>
-                      <Upload size={16} />
-                      Upload New File
-                    </Button>
-                    <Button onClick={viewData} disabled={loading}>
-                      <Eye size={16} />
-                      View Full Data
-                    </Button>
-                  </ButtonGroup>
-                </Card>
+                        ))}
+                      </tbody>
+                    </Table>
+                  </TableContainer>
+                </div>
               )}
+            </div>
+          )}
 
-              {/* Step 3: Analyze */}
-              {currentStep === 3 && (
-                <Card>
-                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Ready for Sentiment Analysis</h2>
-                  <p style={{textAlign: 'center', marginBottom: '2rem', color: '#6b7280'}}>
-                    Click "Analyze" to perform AI-powered sentiment analysis on your data.
-                    This process may take a few minutes for large datasets.
-                  </p>
-                  
-                  <ButtonGroup>
-                    <Button $variant="secondary" onClick={() => setCurrentStep(2)}>
-                      <Eye size={16} />
-                      Back to Data
-                    </Button>
-                    <Button onClick={analyzeDataStreaming} disabled={loading} style={{background: '#10b981'}}>
-                      <TrendingUp size={16} />
-                      Start Analysis
-                    </Button>
-                  </ButtonGroup>
-                </Card>
-              )}
+          {/* Data Analysis */}
+          {activeNav === 'data-analysis' && (
+            <Card>
+              <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Sentiment Analysis</h2>
+              
+              <FormGroup>
+                <Label>Select Document to Analyze</Label>
+                <Select
+                  value={selectedDocument}
+                  onChange={(e) => setSelectedDocument(e.target.value)}
+                >
+                  <option value="">Choose a document...</option>
+                  {documents.map(doc => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.filename} ({doc.row_count} rows)
+                    </option>
+                  ))}
+                </Select>
+              </FormGroup>
+
+              <ButtonGroup>
+                <Button onClick={analyzeDocument} disabled={!selectedDocument || loading}>
+                  <Play size={16} />
+                  Start Analysis
+                </Button>
+                <Button onClick={analyzeDocumentStreaming} disabled={!selectedDocument || loading} style={{background: '#10b981'}}>
+                  <TrendingUp size={16} />
+                  Start Streaming Analysis
+                </Button>
+                {selectedDocument && (
+                  <Button $variant="secondary" onClick={() => {
+                    const doc = documents.find(d => d.id === selectedDocument);
+                    if (doc) viewDocument(doc.id);
+                  }}>
+                    <Eye size={16} />
+                    View Document
+                  </Button>
+                )}
+              </ButtonGroup>
 
               {/* Analysis Streaming Interface */}
               {analysisStreamingMode && (
-                <Card>
-                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Real-time Sentiment Analysis</h2>
+                <div style={{marginTop: '2rem'}}>
+                  <h3 style={{marginBottom: '1rem', color: '#1f2937'}}>Real-time Sentiment Analysis</h3>
                   <div style={{marginBottom: '1rem', fontWeight: 'bold', color: '#10b981'}}>
                     {analysisStreamingStatus}
                   </div>
@@ -1260,19 +1571,14 @@ function App() {
                             </SentimentBadge>
                           )}
                           {item.confidence !== null && (
-                            <ConfidenceContainer>
-                              <ConfidenceText $confidence={item.confidence}>
-                                {(item.confidence * 100).toFixed(1)}%
-                              </ConfidenceText>
-                              <ConfidenceBar>
-                                <ConfidenceFill $confidence={item.confidence} />
-                              </ConfidenceBar>
-                            </ConfidenceContainer>
+                            <span style={{color: '#2596be', fontSize: '0.875rem'}}>
+                              Confidence: {(item.confidence * 100).toFixed(1)}%
+                            </span>
                           )}
                           {item.topics && item.topics.length > 0 && (
                             <TagsContainer>
-                              {item.topics.map((topic, idx) => (
-                                <TopicBadge key={idx}>
+                              {item.topics && item.topics.map((topic, idx) => (
+                                <TopicBadge key={`topic-${item.index}-${idx}`}>
                                   <Tag size={12} />
                                   {topic}
                                 </TopicBadge>
@@ -1280,64 +1586,43 @@ function App() {
                             </TagsContainer>
                           )}
                           {!item.complete && (
-                            <span style={{color: '#10b981', fontSize: '0.875rem'}}>Analyzing...</span>
+                            <StreamingText style={{animation: 'blink 1s infinite', color: '#10b981'}}>
+                              Analyzing...
+                            </StreamingText>
                           )}
                         </div>
                       </StreamingRow>
                     ))}
                   </StreamingContainer>
-                </Card>
+                </div>
               )}
 
-              {/* Step 4: Analysis Results */}
-              {currentStep === 4 && analyzedData && stats && !analysisStreamingMode && (
-                <Card>
-                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Sentiment Analysis Results</h2>
+              {analysisResults && (
+                <div style={{marginTop: '2rem'}}>
+                  <h3 style={{marginBottom: '1rem', color: '#1f2937'}}>Analysis Results</h3>
                   
-                  <Stats>
+                  <StatsGrid>
                     <StatCard>
-                      <StatNumber color="#10b981">{stats.positive || 0}</StatNumber>
-                      <StatLabel>Positive ({analyzedData.length > 0 ? (((stats.positive || 0) / analyzedData.length) * 100).toFixed(1) : '0.0'}%)</StatLabel>
+                      <StatNumber color="#10b981">{analysisResults.statistics?.positive || 0}</StatNumber>
+                      <StatLabel>Positive ({analysisResults.analyzed_data?.length > 0 ? (((analysisResults.statistics?.positive || 0) / analysisResults.analyzed_data.length) * 100).toFixed(1) : '0.0'}%)</StatLabel>
                     </StatCard>
                     <StatCard>
-                      <StatNumber color="#ef4444">{stats.negative || 0}</StatNumber>
-                      <StatLabel>Negative ({analyzedData.length > 0 ? (((stats.negative || 0) / analyzedData.length) * 100).toFixed(1) : '0.0'}%)</StatLabel>
+                      <StatNumber color="#ef4444">{analysisResults.statistics?.negative || 0}</StatNumber>
+                      <StatLabel>Negative ({analysisResults.analyzed_data?.length > 0 ? (((analysisResults.statistics?.negative || 0) / analysisResults.analyzed_data.length) * 100).toFixed(1) : '0.0'}%)</StatLabel>
                     </StatCard>
                     <StatCard>
-                      <StatNumber color="#6b7280">{stats.neutral || 0}</StatNumber>
-                      <StatLabel>Neutral ({analyzedData.length > 0 ? (((stats.neutral || 0) / analyzedData.length) * 100).toFixed(1) : '0.0'}%)</StatLabel>
+                      <StatNumber color="#6b7280">{analysisResults.statistics?.neutral || 0}</StatNumber>
+                      <StatLabel>Neutral ({analysisResults.analyzed_data?.length > 0 ? (((analysisResults.statistics?.neutral || 0) / analysisResults.analyzed_data.length) * 100).toFixed(1) : '0.0'}%)</StatLabel>
                     </StatCard>
                     <StatCard>
-                      <StatNumber>{averageConfidence && !isNaN(averageConfidence) ? (averageConfidence * 100).toFixed(1) : '0.0'}%</StatNumber>
+                      <StatNumber>{analysisResults.average_confidence && !isNaN(analysisResults.average_confidence) ? (analysisResults.average_confidence * 100).toFixed(1) : '0.0'}%</StatNumber>
                       <StatLabel>Average Confidence</StatLabel>
                     </StatCard>
-                  </Stats>
-
-                  {topicStats && (
-                    <Card style={{marginBottom: '1rem'}}>
-                      <h3 style={{marginBottom: '1rem', color: '#1f2937'}}>Topic Distribution</h3>
-                      <Stats>
-                        {Object.entries(topicStats).slice(0, 4).map(([topic, count]) => (
-                          <StatCard key={topic}>
-                            <StatNumber color="#2596be">{count}</StatNumber>
-                            <StatLabel>{topic}</StatLabel>
-                          </StatCard>
-                        ))}
-                      </Stats>
-                    </Card>
-                  )}
+                  </StatsGrid>
 
                   <TableContainer>
                     <TableHeader>
                       <TableTitle>Analysis Results</TableTitle>
-                      <TableActions>
-                        <Button $variant="secondary" style={{padding: '0.5rem'}}>
-                          <Filter size={16} />
-                        </Button>
-                        <Button $variant="secondary" style={{padding: '0.5rem'}}>
-                          <Search size={16} />
-                        </Button>
-                      </TableActions>
                     </TableHeader>
                     <Table>
                       <thead>
@@ -1346,66 +1631,35 @@ function App() {
                           <Th>Sentiment</Th>
                           <Th>Confidence</Th>
                           <Th>Topics</Th>
-                          <Th>Tags</Th>
                         </tr>
                       </thead>
                       <tbody>
-                        {analyzedData.slice(0, 100).map((row, idx) => {
+                        {analysisResults.analyzed_data?.slice(0, 50).map((row, idx) => {
                           const textContent = Object.values(row).find(val =>
                             typeof val === 'string' && val.length > 10 &&
-                            !['sentiment', 'confidence', 'topic'].includes(val)
+                            !['sentiment', 'confidence', 'topic', 'topics'].includes(val)
                           ) || 'No text content';
-                          
-                          const topics = extractDetailedTopics(row.topic);
-                          const enhancedConfidence = calculateEnhancedConfidence(
-                            row.confidence,
-                            String(textContent).length,
-                            row.sentiment === 'positive' ? 1.2 : row.sentiment === 'negative' ? 1.1 : 1.0
-                          );
+
+                          const topics = Array.isArray(row.topics) ? row.topics : [row.topic || 'General'];
                           
                           return (
                             <tr key={idx}>
-                              <ContentCell>
-                                {String(textContent)}
-                              </ContentCell>
+                              <ContentCell>{String(textContent)}</ContentCell>
                               <Td>
                                 <SentimentBadge $sentiment={row.sentiment}>
                                   {getSentimentIcon(row.sentiment)}
                                   {row.sentiment}
                                 </SentimentBadge>
                               </Td>
-                              <Td>
-                                <ConfidenceContainer>
-                                  <ConfidenceText $confidence={enhancedConfidence}>
-                                    {(enhancedConfidence * 100).toFixed(1)}%
-                                  </ConfidenceText>
-                                  <ConfidenceBar>
-                                    <ConfidenceFill $confidence={enhancedConfidence} />
-                                  </ConfidenceBar>
-                                </ConfidenceContainer>
-                              </Td>
+                              <Td>{row.confidence && !isNaN(row.confidence) ? (row.confidence * 100).toFixed(1) : '0.0'}%</Td>
                               <Td>
                                 <TagsContainer>
-                                  {topics.map((topic, topicIdx) => (
-                                    <TopicBadge key={topicIdx}>
+                                  {topics.slice(0, 3).map((topic, topicIdx) => (
+                                    <TopicBadge key={`analysis-topic-${idx}-${topicIdx}`}>
                                       <Tag size={12} />
                                       {topic}
                                     </TopicBadge>
                                   ))}
-                                </TagsContainer>
-                              </Td>
-                              <Td>
-                                <TagsContainer>
-                                  <TopicBadge style={{background: '#fef3c7', color: '#92400e', borderColor: '#fbbf24'}}>
-                                    <Activity size={12} />
-                                    {row.sentiment === 'positive' ? 'Boost' : row.sentiment === 'negative' ? 'Monitor' : 'Neutral'}
-                                  </TopicBadge>
-                                  {enhancedConfidence > 0.8 && (
-                                    <TopicBadge style={{background: '#dcfce7', color: '#166534', borderColor: '#22c55e'}}>
-                                      <CheckCircle size={12} />
-                                      High Confidence
-                                    </TopicBadge>
-                                  )}
                                 </TagsContainer>
                               </Td>
                             </tr>
@@ -1414,31 +1668,62 @@ function App() {
                       </tbody>
                     </Table>
                   </TableContainer>
-                  
-                  <ButtonGroup>
-                    <Button $variant="secondary" onClick={() => setCurrentStep(3)}>
-                      <BarChart3 size={16} />
-                      Re-analyze
-                    </Button>
-                    <Button onClick={generateCommentsStreaming} disabled={loading} style={{background: '#10b981'}}>
-                      <MessageSquare size={16} />
-                      Generate Comments
-                    </Button>
-                  </ButtonGroup>
-                </Card>
+                </div>
               )}
+            </Card>
+          )}
 
-              {/* Streaming Interface for Comments */}
-              {streamingMode && (
-                <Card>
-                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Real-time Comment Generation</h2>
+          {/* Response Generation */}
+          {activeNav === 'response-generation' && (
+            <Card>
+              <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Response Generation</h2>
+              
+              <FormGroup>
+                <Label>Select Analyzed Document</Label>
+                <Select
+                  value={selectedDocument}
+                  onChange={(e) => setSelectedDocument(e.target.value)}
+                >
+                  <option value="">Choose a document...</option>
+                  {documents.map(doc => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.filename} ({doc.row_count} rows)
+                    </option>
+                  ))}
+                </Select>
+              </FormGroup>
+
+              <ButtonGroup>
+                <Button onClick={generateResponses} disabled={!selectedDocument || loading}>
+                  <Send size={16} />
+                  Generate Responses
+                </Button>
+                <Button onClick={generateResponsesStreaming} disabled={!selectedDocument || loading} style={{background: '#10b981'}}>
+                  <TrendingUp size={16} />
+                  Generate Streaming Responses
+                </Button>
+                {selectedDocument && (
+                  <Button $variant="secondary" onClick={() => {
+                    const doc = documents.find(d => d.id === selectedDocument);
+                    if (doc) viewDocument(doc.id);
+                  }}>
+                    <Eye size={16} />
+                    View Document
+                  </Button>
+                )}
+              </ButtonGroup>
+
+              {/* Response Streaming Interface */}
+              {responseStreamingMode && (
+                <div style={{marginTop: '2rem'}}>
+                  <h3 style={{marginBottom: '1rem', color: '#1f2937'}}>Real-time Response Generation</h3>
                   <div style={{marginBottom: '1rem', fontWeight: 'bold', color: '#10b981'}}>
-                    {streamingStatus}
+                    {responseStreamingStatus}
                   </div>
                   
                   <StreamingContainer>
-                    {streamingData.map((item, index) => (
-                      <StreamingRow key={index}>
+                    {responseStreamingData.map((item, index) => (
+                      <StreamingRow key={`response-streaming-${item.index}`}>
                         <div style={{marginBottom: '0.5rem', fontWeight: '600', color: '#1f2937'}}>
                           Row {item.index + 1}:
                           <SentimentBadge $sentiment={item.sentiment} style={{marginLeft: '0.5rem'}}>
@@ -1460,134 +1745,116 @@ function App() {
                       </StreamingRow>
                     ))}
                   </StreamingContainer>
-                </Card>
+                </div>
               )}
 
-              {/* Step 5: Comments Generated */}
-              {currentStep === 5 && finalData && !streamingMode && (
-                <Card>
-                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Mitigation Strategy Generated</h2>
-                  <p style={{textAlign: 'center', marginBottom: '2rem', color: '#6b7280'}}>
-                    Counter-comments for negative sentiments, amplification for positive sentiments,
-                    and positive-leaning responses for neutral sentiments have been generated.
-                  </p>
+              {responses && (
+                <div style={{marginTop: '2rem'}}>
+                  <h3 style={{marginBottom: '1rem', color: '#1f2937'}}>Generated Responses</h3>
                   
                   <TableContainer>
                     <TableHeader>
-                      <TableTitle>Generated Comments</TableTitle>
+                      <TableTitle>Response Strategy</TableTitle>
                     </TableHeader>
                     <Table>
                       <thead>
                         <tr>
-                          <Th>Original</Th>
+                          <Th>Original Content</Th>
                           <Th>Sentiment</Th>
-                          <Th>Confidence</Th>
                           <Th>Topics</Th>
                           <Th>Generated Response</Th>
                         </tr>
                       </thead>
                       <tbody>
-                        {finalData.slice(0, 50).map((row, idx) => {
-                          const textContent = Object.values(row).find(val =>
-                            typeof val === 'string' && val.length > 10 &&
-                            !['sentiment', 'confidence', 'topic', 'generated_comment'].includes(val)
-                          ) || 'No text content';
-                          
-                          const topics = extractDetailedTopics(row.topic);
-                          const enhancedConfidence = calculateEnhancedConfidence(row.confidence, String(textContent).length);
-                          
-                          return (
-                            <tr key={idx}>
-                              <ContentCell>
-                                {String(textContent)}
-                              </ContentCell>
-                              <Td>
-                                <SentimentBadge $sentiment={row.sentiment}>
-                                  {getSentimentIcon(row.sentiment)}
-                                  {row.sentiment}
-                                </SentimentBadge>
-                              </Td>
-                              <Td>
-                                <ConfidenceContainer>
-                                  <ConfidenceText $confidence={enhancedConfidence}>
-                                    {(enhancedConfidence * 100).toFixed(1)}%
-                                  </ConfidenceText>
-                                  <ConfidenceBar>
-                                    <ConfidenceFill $confidence={enhancedConfidence} />
-                                  </ConfidenceBar>
-                                </ConfidenceContainer>
-                              </Td>
-                              <Td>
-                                <TagsContainer>
-                                  {topics.map((topic, topicIdx) => (
-                                    <TopicBadge key={topicIdx}>
-                                      <Tag size={12} />
-                                      {topic}
-                                    </TopicBadge>
-                                  ))}
-                                </TagsContainer>
-                              </Td>
-                              <ContentCell>
-                                {String(row.generated_comment || '')}
-                              </ContentCell>
-                            </tr>
-                          );
-                        })}
+                        {responses.responses?.slice(0, 50).map((response, idx) => (
+                          <tr key={idx}>
+                            <ContentCell>{response.original_text}</ContentCell>
+                            <Td>
+                              <SentimentBadge $sentiment={response.sentiment}>
+                                {getSentimentIcon(response.sentiment)}
+                                {response.sentiment}
+                              </SentimentBadge>
+                            </Td>
+                            <Td>
+                              <TagsContainer>
+                                {response.topics?.slice(0, 3).map((topic, topicIdx) => (
+                                  <TopicBadge key={`response-topic-${idx}-${topicIdx}`}>
+                                    <Tag size={12} />
+                                    {topic}
+                                  </TopicBadge>
+                                ))}
+                              </TagsContainer>
+                            </Td>
+                            <ContentCell>{response.generated_comment}</ContentCell>
+                          </tr>
+                        ))}
                       </tbody>
                     </Table>
                   </TableContainer>
-                  
-                  <ButtonGroup>
-                    <Button $variant="secondary" onClick={() => setCurrentStep(4)}>
-                      <MessageSquare size={16} />
-                      Back to Analysis
-                    </Button>
-                    <Button onClick={generateReport} disabled={loading}>
-                      <FileText size={16} />
-                      Generate Report
-                    </Button>
-                  </ButtonGroup>
-                </Card>
+                </div>
               )}
-
-              {/* Step 6: Report Generated */}
-              {currentStep === 6 && (
-                <Card>
-                  <div style={{textAlign: 'center'}}>
-                    <CheckCircle size={64} style={{color: '#10b981', margin: '0 auto 1rem'}} />
-                    <h2 style={{marginBottom: '1rem', color: '#1f2937'}}>Report Generated Successfully</h2>
-                    <p style={{color: '#6b7280', marginBottom: '2rem'}}>
-                      Your comprehensive sentiment analysis report has been downloaded as a PowerPoint presentation.
-                    </p>
-                    
-                    <ButtonGroup>
-                      <Button onClick={resetWorkflow}>
-                        <Upload size={16} />
-                        Start New Analysis
-                      </Button>
-                      <Button $variant="secondary" onClick={generateReport} disabled={loading}>
-                        <Download size={16} />
-                        Download Again
-                      </Button>
-                    </ButtonGroup>
-                  </div>
-                </Card>
-              )}
-            </>
-          )}
-
-          {/* Other Navigation Pages */}
-          {activeNav === 'users' && (
-            <Card>
-              <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>User Management</h2>
-              <p style={{color: '#6b7280'}}>User management functionality would be implemented here.</p>
             </Card>
           )}
 
-          {activeNav === 'settings' && (
+          {/* Report Generation */}
+          {activeNav === 'report-generation' && (
             <Card>
-              <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>System Settings</h2>
-              <p style={{color: '#6b7280'}}>System configuration options would be available here.</p>
+              <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Report Generation</h2>
+              
+              <FormGroup>
+                <Label>Select Document for Report</Label>
+                <Select
+                  value={selectedDocument}
+                  onChange={(e) => setSelectedDocument(e.target.value)}
+                >
+                  <option value="">Choose a document...</option>
+                  {documents.filter(doc => doc.status === 'analyzed' || doc.status === 'completed').map(doc => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.filename} ({doc.status})
+                    </option>
+                  ))}
+                </Select>
+              </FormGroup>
+
+              <div style={{background: '#f8fafc', padding: '1.5rem', borderRadius: '8px', margin: '1.5rem 0'}}>
+                <h3 style={{color: '#1f2937', marginBottom: '1rem'}}>Report Includes:</h3>
+                <ul style={{color: '#6b7280', lineHeight: '1.6'}}>
+                  <li>📋 Executive Summary with key insights and recommendations</li>
+                  <li>📊 Volume Metrics and trend analysis</li>
+                  <li>😊 Detailed Sentiment Analysis breakdown</li>
+                  <li>🧍‍♂️ Audience Insights and demographics (where available)</li>
+                  <li>🔥 Top Performing Content and engagement metrics</li>
+                  <li>🗣️ Key Topics & Hashtags analysis</li>
+                  <li>⚔️ Competitor & Industry Benchmarking</li>
+                  <li>🚨 Crisis or Issue Tracking (if relevant)</li>
+                  <li>💡 Strategic Insights & Recommendations</li>
+                  <li>📅 Methodology & Data Sources</li>
+                </ul>
+              </div>
+
+              <ButtonGroup>
+                <Button onClick={generateReport} disabled={!selectedDocument || loading}>
+                  <FileText size={16} />
+                  Generate PowerPoint Report
+                </Button>
+                {selectedDocument && (
+                  <Button $variant="secondary" onClick={() => {
+                    const doc = documents.find(d => d.id === selectedDocument);
+                    if (doc) viewDocument(doc.id);
+                  }}>
+                    <Eye size={16} />
+                    Preview Data
+                  </Button>
+                )}
+              </ButtonGroup>
+            </Card>
+          )}
+
+          {/* User Management */}
+          {activeNav === 'user-management' && (
+            <Card>
+              <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>User Management</h2>
+              <p style={{color: '#6b7280'}}>User management functionality would be implemented here for managing system access and permissions.</p>
             </Card>
           )}
         </Content>

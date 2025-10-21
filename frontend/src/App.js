@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { useDropzone } from 'react-dropzone';
@@ -34,16 +34,28 @@ import {
   FileSearch,
   BookOpen,
   Send,
-  ArrowLeft
+  ArrowLeft,
+  Target,
+  Crown,
+  Zap,
+  FilterX,
+  SortAsc,
+  SortDesc,
+  ExternalLink,
+  Globe,
+  User,
+  Building,
+  Bot
 } from 'lucide-react';
 
 // Styled Components
 const AppContainer = styled.div`
-  min-height: 100vh;
+  height: 100vh;
   background: #ffffff;
   color: #1f2937;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   display: flex;
+  overflow: hidden;
 `;
 
 const Sidebar = styled.div`
@@ -54,6 +66,9 @@ const Sidebar = styled.div`
   display: flex;
   flex-direction: column;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  height: 100vh;
+  overflow-y: auto;
 `;
 
 const SidebarHeader = styled.div`
@@ -134,6 +149,8 @@ const MainContent = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
 `;
 
 const Header = styled.header`
@@ -194,6 +211,7 @@ const Content = styled.main`
   padding: 2rem;
   overflow-y: auto;
   background: #f9fafb;
+  height: calc(100vh - 80px); /* Subtract header height */
 `;
 
 const Card = styled.div`
@@ -359,11 +377,14 @@ const DropZone = styled.div`
 const TableContainer = styled.div`
   background: white;
   border-radius: 8px;
-  overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   border: 1px solid #e5e7eb;
   margin: 2rem auto;
   max-width: 1200px;
+  max-height: 600px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
 `;
 
 const TableHeader = styled.div`
@@ -389,6 +410,7 @@ const TableActions = styled.div`
 
 const Table = styled.table`
   width: 100%;
+  min-width: 800px;
   border-collapse: collapse;
 `;
 
@@ -596,6 +618,372 @@ const StreamingText = styled.div`
   }
 `;
 
+const ProgressContainer = styled.div`
+  margin: 1rem 0;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+`;
+
+const ProgressBar = styled.div`
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0.5rem 0;
+`;
+
+const ProgressFill = styled.div`
+  height: 100%;
+  background: #2596be;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  width: ${props => props.$progress}%;
+`;
+
+const ProgressText = styled.div`
+  font-size: 0.875rem;
+  color: #374151;
+  font-weight: 500;
+  text-align: center;
+`;
+
+const HandsontableContainer = styled.div`
+  width: 100%;
+  height: 600px;
+  margin: 1rem 0;
+  
+  .handsontable {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 0.875rem;
+  }
+  
+  .ht_master .wtHolder {
+    background: white;
+  }
+  
+  .handsontable th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  
+  .handsontable td {
+    border-color: #e5e7eb;
+    color: #374151;
+  }
+  
+  .handsontable .currentRow {
+    background: #f0f9ff;
+  }
+  
+  .handsontable .area-1 {
+    background: #dbeafe;
+  }
+`;
+
+// Simple Chart Components for Visualizations
+const ChartContainer = styled.div`
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  margin-bottom: 1rem;
+`;
+
+const ChartTitle = styled.h4`
+  color: #1f2937;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+`;
+
+const BarChart = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+`;
+
+const BarItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+`;
+
+const BarLabel = styled.div`
+  min-width: 100px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+`;
+
+const BarContainer = styled.div`
+  flex: 1;
+  height: 24px;
+  background: #f3f4f6;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+`;
+
+const BarFill = styled.div`
+  height: 100%;
+  background: ${props => props.color || '#2596be'};
+  border-radius: 12px;
+  transition: width 0.3s ease;
+  width: ${props => props.percentage}%;
+`;
+
+const BarValue = styled.div`
+  min-width: 60px;
+  text-align: right;
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+`;
+
+const PieChartContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin: 1rem 0;
+`;
+
+const PieChart = styled.div`
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: conic-gradient(
+    ${props => props.colors}
+  );
+  position: relative;
+`;
+
+const PieCenter = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  background: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #374151;
+`;
+
+const LegendContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
+const LegendItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+`;
+
+const LegendColor = styled.div`
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: ${props => props.color};
+`;
+
+// Fast Handsontable Component for large datasets
+const FastDataTable = ({ data, columns, title }) => {
+  const containerRef = useRef(null);
+  const hotRef = useRef(null);
+
+  useEffect(() => {
+    if (!data || !columns || !containerRef.current) return;
+
+    // Destroy existing instance
+    if (hotRef.current) {
+      hotRef.current.destroy();
+    }
+
+    // Create new Handsontable instance
+    hotRef.current = new window.Handsontable(containerRef.current, {
+      data: data,
+      colHeaders: columns,
+      rowHeaders: true,
+      columnSorting: true,
+      manualColumnResize: true,
+      manualRowResize: true,
+      contextMenu: true,
+      copyPaste: true,
+      search: true,
+      filters: true,
+      dropdownMenu: true,
+      width: '100%',
+      height: '100%',
+      licenseKey: 'non-commercial-and-evaluation',
+      stretchH: 'all',
+      autoWrapRow: true,
+      autoWrapCol: true,
+      renderAllRows: false, // Enable virtualization for performance
+      viewportRowRenderingOffset: 100,
+      outsideClickDeselects: false,
+      selectionMode: 'multiple',
+      readOnly: true,
+      className: 'fast-data-table',
+      cells: function (row, col) {
+        const cellProperties = {};
+        const cellData = this.instance.getDataAtCell(row, col);
+        
+        // Special rendering for sentiment columns
+        if (columns[col]?.toLowerCase().includes('sentiment')) {
+          cellProperties.renderer = sentimentRenderer;
+        }
+        // Special rendering for confidence columns
+        else if (columns[col]?.toLowerCase().includes('confidence')) {
+          cellProperties.renderer = confidenceRenderer;
+        }
+        // Special rendering for topic columns
+        else if (columns[col]?.toLowerCase().includes('topic')) {
+          cellProperties.renderer = topicRenderer;
+        }
+        // Text wrapping for long content
+        else if (typeof cellData === 'string' && cellData.length > 50) {
+          cellProperties.renderer = textRenderer;
+        }
+        
+        return cellProperties;
+      }
+    });
+
+    // Cleanup on unmount
+    return () => {
+      if (hotRef.current) {
+        hotRef.current.destroy();
+        hotRef.current = null;
+      }
+    };
+  }, [data, columns]);
+
+  // Custom renderers for different data types - Fixed with proper type checking
+  const sentimentRenderer = function(instance, td, row, col, prop, value, cellProperties) {
+    window.Handsontable.renderers.TextRenderer.call(this, instance, td, row, col, prop, value, cellProperties);
+    
+    if (value && typeof value === 'string' && value.trim()) {
+      const sentiment = String(value).toLowerCase().trim();
+      td.style.padding = '8px';
+      
+      if (sentiment === 'positive') {
+        td.style.backgroundColor = '#dcfce7';
+        td.style.color = '#166534';
+        td.style.fontWeight = '600';
+        td.innerHTML = `<span>😊 ${value}</span>`;
+      } else if (sentiment === 'negative') {
+        td.style.backgroundColor = '#fee2e2';
+        td.style.color = '#991b1b';
+        td.style.fontWeight = '600';
+        td.innerHTML = `<span>😔 ${value}</span>`;
+      } else if (sentiment === 'neutral') {
+        td.style.backgroundColor = '#f3f4f6';
+        td.style.color = '#374151';
+        td.style.fontWeight = '600';
+        td.innerHTML = `<span>😐 ${value}</span>`;
+      }
+    }
+  };
+
+  const confidenceRenderer = function(instance, td, row, col, prop, value, cellProperties) {
+    window.Handsontable.renderers.TextRenderer.call(this, instance, td, row, col, prop, value, cellProperties);
+    
+    if (value !== null && value !== undefined && value !== '') {
+      const confidence = parseFloat(String(value));
+      if (!isNaN(confidence)) {
+        const percentage = confidence > 1 ? confidence : confidence * 100;
+        td.style.padding = '8px';
+        td.style.fontWeight = '500';
+        
+        if (percentage >= 80) {
+          td.style.color = '#166534';
+          td.style.backgroundColor = '#dcfce7';
+        } else if (percentage >= 60) {
+          td.style.color = '#ea580c';
+          td.style.backgroundColor = '#fed7aa';
+        } else {
+          td.style.color = '#991b1b';
+          td.style.backgroundColor = '#fee2e2';
+        }
+        
+        td.innerHTML = `${percentage.toFixed(1)}%`;
+      }
+    }
+  };
+
+  const topicRenderer = function(instance, td, row, col, prop, value, cellProperties) {
+    window.Handsontable.renderers.TextRenderer.call(this, instance, td, row, col, prop, value, cellProperties);
+    
+    if (value && typeof value === 'string' && value.trim()) {
+      td.style.padding = '8px';
+      const topics = String(value).split(',').map(t => t.trim()).filter(t => t).slice(0, 3);
+      if (topics.length > 0) {
+        const topicBadges = topics.map(topic =>
+          `<span style="display: inline-block; background: #eff6ff; color: #1e40af; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; margin: 1px; border: 1px solid #bfdbfe;">${topic}</span>`
+        ).join(' ');
+        td.innerHTML = topicBadges;
+      }
+    }
+  };
+
+  const textRenderer = function(instance, td, row, col, prop, value, cellProperties) {
+    window.Handsontable.renderers.TextRenderer.call(this, instance, td, row, col, prop, value, cellProperties);
+    
+    if (value && typeof value === 'string' && value.trim()) {
+      td.style.padding = '8px';
+      td.style.lineHeight = '1.4';
+      td.style.maxWidth = '400px';
+      td.style.whiteSpace = 'normal';
+      td.style.overflow = 'hidden';
+      td.style.textOverflow = 'ellipsis';
+      
+      // Truncate very long text for performance
+      const textValue = String(value);
+      if (textValue.length > 200) {
+        td.innerHTML = textValue.substring(0, 200) + '...';
+        td.title = textValue; // Show full text on hover
+      } else {
+        td.innerHTML = textValue;
+      }
+    }
+  };
+
+  return (
+    <TableContainer>
+      <TableHeader style={{flexShrink: 0}}>
+        <TableTitle>{title}</TableTitle>
+        <TableActions>
+          <Button $variant="secondary" style={{padding: '0.5rem'}} onClick={() => {
+            if (hotRef.current) {
+              hotRef.current.getPlugin('search').query('');
+            }
+          }}>
+            <Search size={16} />
+          </Button>
+        </TableActions>
+      </TableHeader>
+      <HandsontableContainer>
+        <div ref={containerRef} style={{width: '100%', height: '100%'}} />
+      </HandsontableContainer>
+    </TableContainer>
+  );
+};
+
 // Debug: Log the API URL being used
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8011';
 console.log('Frontend is using API_BASE:', API_BASE);
@@ -622,6 +1010,8 @@ function App() {
   
   // Application state
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState('');
   const [documents, setDocuments] = useState([]);
   const [selectedDocument, setSelectedDocument] = useState('');
   const [currentDocumentData, setCurrentDocumentData] = useState(null);
@@ -629,6 +1019,8 @@ function App() {
   const [responses, setResponses] = useState(null);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState(''); // 'success' or 'error'
+  const [selectedTextColumn, setSelectedTextColumn] = useState('');
+  const [detectedTextColumn, setDetectedTextColumn] = useState('');
   
   // Streaming states
   const [analysisStreamingMode, setAnalysisStreamingMode] = useState(false);
@@ -637,6 +1029,19 @@ function App() {
   const [responseStreamingMode, setResponseStreamingMode] = useState(false);
   const [responseStreamingData, setResponseStreamingData] = useState([]);
   const [responseStreamingStatus, setResponseStreamingStatus] = useState("");
+  
+  // Influential voices analysis states
+  const [influentialVoices, setInfluentialVoices] = useState(null);
+  const [exposureThreshold, setExposureThreshold] = useState(500000);
+  const [topCount, setTopCount] = useState(5);
+  const [useThreshold, setUseThreshold] = useState(true);
+  const [filterSentiment, setFilterSentiment] = useState('all');
+  const [sortBy, setSortBy] = useState('exposure');
+  const [sortOrder, setSortOrder] = useState('desc');
+  
+  // Saved analyses states
+  const [savedAnalyses, setSavedAnalyses] = useState([]);
+  const [selectedSavedAnalysis, setSelectedSavedAnalysis] = useState('');
 
   // Check for saved authentication on mount
   useEffect(() => {
@@ -644,6 +1049,7 @@ function App() {
     if (savedAuth === 'true') {
       setIsAuthenticated(true);
       loadDocuments();
+      loadSavedAnalyses();
     }
   }, []);
 
@@ -666,6 +1072,74 @@ function App() {
     }
   };
 
+  const loadSavedAnalyses = async () => {
+    try {
+      const response = await axios.get(`${FINAL_API_BASE}/saved-analyses`);
+      setSavedAnalyses(response.data.saved_analyses || []);
+    } catch (error) {
+      console.error('Error loading saved analyses:', error);
+    }
+  };
+
+  const saveAnalysisSession = async (analysisName, analysisType, analysisData) => {
+    if (!selectedDocument) {
+      showMessage('Please select a document first', 'error');
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${FINAL_API_BASE}/save-analysis`, {
+        session_id: `analysis_${Date.now()}`,
+        document_id: selectedDocument,
+        analysis_name: analysisName,
+        analysis_type: analysisType,
+        analysis_data: analysisData
+      });
+      
+      showMessage(`Analysis "${analysisName}" saved successfully!`);
+      loadSavedAnalyses();
+      return response.data.saved_analysis_id;
+    } catch (error) {
+      showMessage('Error saving analysis: ' + (error.response?.data?.detail || error.message), 'error');
+      return null;
+    }
+  };
+
+  const loadSavedAnalysis = async (analysisId) => {
+    try {
+      const response = await axios.get(`${FINAL_API_BASE}/saved-analyses/${analysisId}`);
+      const savedAnalysis = response.data;
+      
+      // Load the analysis data based on type
+      if (savedAnalysis.analysis_type === 'sentiment') {
+        setAnalysisResults(savedAnalysis.analysis_data);
+      } else if (savedAnalysis.analysis_type === 'influential_voices') {
+        setInfluentialVoices(savedAnalysis.analysis_data);
+      } else if (savedAnalysis.analysis_type === 'responses') {
+        setResponses(savedAnalysis.analysis_data);
+      }
+      
+      showMessage(`Loaded saved analysis: ${savedAnalysis.analysis_name}`);
+    } catch (error) {
+      showMessage('Error loading saved analysis: ' + (error.response?.data?.detail || error.message), 'error');
+    }
+  };
+
+  const deleteSavedAnalysis = async (analysisId) => {
+    if (!window.confirm('Are you sure you want to delete this saved analysis?')) return;
+    
+    try {
+      await axios.delete(`${FINAL_API_BASE}/saved-analyses/${analysisId}`);
+      showMessage('Saved analysis deleted successfully!');
+      loadSavedAnalyses();
+      if (selectedSavedAnalysis === analysisId) {
+        setSelectedSavedAnalysis('');
+      }
+    } catch (error) {
+      showMessage('Error deleting saved analysis: ' + (error.response?.data?.detail || error.message), 'error');
+    }
+  };
+
   const handleLogin = (e) => {
     e.preventDefault();
     setLoginError('');
@@ -674,6 +1148,7 @@ function App() {
       setIsAuthenticated(true);
       localStorage.setItem('meioAuth', 'true');
       loadDocuments();
+      loadSavedAnalyses();
     } else {
       setLoginError('Invalid credentials. Use admin/meio2024');
     }
@@ -695,15 +1170,28 @@ function App() {
     if (!file) return;
 
     setLoading(true);
+    setUploadProgress(0);
+    setUploadStatus('Preparing upload...');
+    
     try {
       const formData = new FormData();
       formData.append('file', file);
 
+      setUploadStatus('Uploading file...');
       const response = await axios.post(`${FINAL_API_BASE}/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+          setUploadStatus(`Uploading... ${percentCompleted}%`);
+        }
       });
 
+      setUploadStatus('Processing file...');
+
+      setUploadStatus('Upload completed!');
       showMessage(`Document "${file.name}" uploaded successfully!`);
+      
       // Store the session data with session_id from backend
       const sessionData = {
         id: response.data.session_id,
@@ -711,8 +1199,11 @@ function App() {
         filename: response.data.filename,
         row_count: response.data.row_count,
         upload_date: new Date().toISOString(),
-        status: 'uploaded'
+        status: 'uploaded',
+        detected_text_column: response.data.detected_text_column
       };
+      
+      console.log('Storing session data:', sessionData);
       
       const existingSessions = JSON.parse(localStorage.getItem('meioSessions') || '[]');
       existingSessions.push(sessionData);
@@ -720,9 +1211,18 @@ function App() {
       
       loadDocuments();
     } catch (error) {
-      showMessage('Error uploading file: ' + (error.response?.data?.detail || error.message), 'error');
+      console.error('Upload error details:', error);
+      const errorMessage = error.response?.data?.detail || error.message || 'Unknown upload error';
+      setUploadStatus(`Upload failed: ${errorMessage}`);
+      showMessage(`Error uploading file: ${errorMessage}`, 'error');
     }
+    
+    // Reset upload states
     setLoading(false);
+    setTimeout(() => {
+      setUploadProgress(0);
+      setUploadStatus('');
+    }, 3000);
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -735,17 +1235,33 @@ function App() {
   });
 
   const viewDocument = async (documentId) => {
+    console.log('ViewDocument called with ID:', documentId);
+    
+    if (!documentId) {
+      showMessage('Invalid document ID', 'error');
+      return;
+    }
+    
     setLoading(true);
     try {
       const response = await axios.get(`${FINAL_API_BASE}/data/${documentId}`);
+      
+      // Find the document in our stored sessions to get detected text column
+      const existingSessions = JSON.parse(localStorage.getItem('meioSessions') || '[]');
+      const docInfo = existingSessions.find(doc => doc.session_id === documentId || doc.id === documentId);
+      
       setCurrentDocumentData({
         id: documentId,
         ...response.data,
         columns: Object.keys(response.data.data[0] || {}),
-        row_count: response.data.data.length
+        row_count: response.data.data.length,
+        detected_text_column: docInfo?.detected_text_column
       });
+      setDetectedTextColumn(docInfo?.detected_text_column || '');
+      setSelectedTextColumn(docInfo?.detected_text_column || '');
       setActiveNav('data-viewer');
     } catch (error) {
+      console.error('ViewDocument error:', error);
       showMessage('Error loading document: ' + (error.response?.data?.detail || error.message), 'error');
     }
     setLoading(false);
@@ -780,9 +1296,16 @@ function App() {
 
     setLoading(true);
     try {
-      const response = await axios.post(`${FINAL_API_BASE}/analyze`, {
+      const requestPayload = {
         session_id: selectedDocument
-      });
+      };
+      
+      // Include selected text column if user has overridden the detection
+      if (selectedTextColumn && selectedTextColumn !== detectedTextColumn) {
+        requestPayload.text_column_override = selectedTextColumn;
+      }
+      
+      const response = await axios.post(`${FINAL_API_BASE}/analyze`, requestPayload);
       setAnalysisResults(response.data);
       showMessage('Document analyzed successfully!');
       
@@ -817,7 +1340,8 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          session_id: selectedDocument
+          session_id: selectedDocument,
+          text_column_override: selectedTextColumn !== detectedTextColumn ? selectedTextColumn : undefined
         })
       });
 
@@ -886,7 +1410,18 @@ function App() {
                   break;
                   
                 case 'complete_all':
-                  setAnalysisResults(data);
+                  // Ensure exposure statistics are included from streaming response
+                  const completeData = {
+                    ...data,
+                    exposure_statistics: data.exposure_statistics || {
+                      max_exposure: 0,
+                      min_exposure: 0,
+                      avg_exposure: 0,
+                      total_exposure: 0
+                    },
+                    profile_distribution: data.profile_distribution || {}
+                  };
+                  setAnalysisResults(completeData);
                   setAnalysisStreamingStatus("Sentiment analysis completed!");
                   showMessage('Document analyzed successfully with streaming!');
                   loadDocuments(); // Refresh to update status
@@ -920,9 +1455,16 @@ function App() {
 
     setLoading(true);
     try {
-      const response = await axios.post(`${FINAL_API_BASE}/mitigate`, {
+      const requestPayload = {
         session_id: selectedDocument
-      });
+      };
+      
+      // Include selected text column if user has overridden the detection
+      if (selectedTextColumn && selectedTextColumn !== detectedTextColumn) {
+        requestPayload.text_column_override = selectedTextColumn;
+      }
+      
+      const response = await axios.post(`${FINAL_API_BASE}/mitigate`, requestPayload);
       
       // Format the response data to match expected structure
       const formattedResponses = {
@@ -971,7 +1513,8 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          session_id: selectedDocument
+          session_id: selectedDocument,
+          text_column_override: selectedTextColumn !== detectedTextColumn ? selectedTextColumn : undefined
         })
       });
 
@@ -1128,6 +1671,35 @@ function App() {
     setLoading(false);
   };
 
+  const analyzeInfluentialVoices = async () => {
+    if (!selectedDocument) {
+      showMessage('Please select a document to analyze', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const requestPayload = {
+        session_id: selectedDocument,
+        exposure_threshold: exposureThreshold,
+        top_count: topCount,
+        use_threshold: useThreshold
+      };
+      
+      // Include selected text column if user has overridden the detection
+      if (selectedTextColumn && selectedTextColumn !== detectedTextColumn) {
+        requestPayload.text_column_override = selectedTextColumn;
+      }
+      
+      const response = await axios.post(`${FINAL_API_BASE}/analyze-influential`, requestPayload);
+      setInfluentialVoices(response.data);
+      showMessage('Influential voices analysis completed successfully!');
+    } catch (error) {
+      showMessage('Error analyzing influential voices: ' + (error.response?.data?.detail || error.message), 'error');
+    }
+    setLoading(false);
+  };
+
   const getPageTitle = () => {
     switch (activeNav) {
       case 'dashboard': return 'Dashboard Overview';
@@ -1136,6 +1708,7 @@ function App() {
       case 'data-analysis': return 'Data Analysis';
       case 'response-generation': return 'Response Generation';
       case 'report-generation': return 'Report Generation';
+      case 'influential-voices': return 'Influential Voices Analysis';
       case 'user-management': return 'User Management';
       default: return 'MEIO Sentiment Analysis System';
     }
@@ -1156,11 +1729,18 @@ function App() {
       <LoginContainer>
         <LoginCard>
           <LoginHeader>
-            <LoginLogo>
-              <Shield size={40} color="white" />
-            </LoginLogo>
-            <LoginTitle>MEIO Portal</LoginTitle>
-            <LoginSubtitle>Malaysian External Intelligence Organisation</LoginSubtitle>
+            <img
+              src="/assets/MCMC_Logo.png"
+              alt="MCMC Logo"
+              style={{
+                height: '60px',
+                width: 'auto',
+                objectFit: 'contain',
+                marginBottom: '1rem'
+              }}
+            />
+            <LoginTitle>MCMC Sentiment Analysis</LoginTitle>
+            <LoginSubtitle>Malaysian Communications and Multimedia Commission</LoginSubtitle>
           </LoginHeader>
           
           <form onSubmit={handleLogin}>
@@ -1189,12 +1769,10 @@ function App() {
             {loginError && <ErrorMessage>{loginError}</ErrorMessage>}
             
             <Button type="submit" $fullWidth>
-              <Shield size={16} />
               Sign In
             </Button>
             
             <div style={{marginTop: '1rem', fontSize: '0.75rem', color: '#6b7280', textAlign: 'center'}}>
-              Demo credentials: admin / meio2024
             </div>
           </form>
         </LoginCard>
@@ -1207,17 +1785,15 @@ function App() {
     <AppContainer>
       <Sidebar $collapsed={sidebarCollapsed}>
         <SidebarHeader>
-          <SidebarToggle onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
-            <Menu size={20} />
-          </SidebarToggle>
-          {!sidebarCollapsed && (
-            <Logo>
-              <LogoIcon>
-                <Shield size={20} />
-              </LogoIcon>
-              <span>MEIO Portal</span>
-            </Logo>
-          )}
+          <img
+            src="/assets/MCMC_Logo.png"
+            alt="MCMC Logo"
+            style={{
+              height: '40px',
+              width: 'auto',
+              objectFit: 'contain'
+            }}
+          />
         </SidebarHeader>
         
         <SidebarNav>
@@ -1266,8 +1842,8 @@ function App() {
             <span>Response Generation</span>
           </NavItem>
           
-          <NavItem 
-            $active={activeNav === 'report-generation'} 
+          <NavItem
+            $active={activeNav === 'report-generation'}
             $collapsed={sidebarCollapsed}
             onClick={() => setActiveNav('report-generation')}
           >
@@ -1275,8 +1851,17 @@ function App() {
             <span>Report Generation</span>
           </NavItem>
           
-          <NavItem 
-            $active={activeNav === 'user-management'} 
+          <NavItem
+            $active={activeNav === 'influential-voices'}
+            $collapsed={sidebarCollapsed}
+            onClick={() => setActiveNav('influential-voices')}
+          >
+            <Target size={20} />
+            <span>Influential Voices</span>
+          </NavItem>
+          
+          <NavItem
+            $active={activeNav === 'user-management'}
             $collapsed={sidebarCollapsed}
             onClick={() => setActiveNav('user-management')}
           >
@@ -1337,35 +1922,245 @@ function App() {
                 </StatCard>
               </StatsGrid>
 
-              <Card>
-                <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Recent Documents</h2>
-                {documents.length === 0 ? (
-                  <p style={{color: '#6b7280', textAlign: 'center', padding: '2rem'}}>
-                    No documents uploaded yet. Start by uploading a document.
-                  </p>
-                ) : (
-                  documents.slice(0, 5).map(doc => (
-                    <DocumentCard key={doc.id}>
-                      <DocumentHeader>
-                        <div>
-                          <DocumentTitle>{doc.filename}</DocumentTitle>
-                          <DocumentMeta>
-                            Uploaded: {new Date(doc.upload_date).toLocaleDateString()} |
-                            Rows: {doc.row_count} |
-                            Status: <StatusBadge $status={doc.status}>{doc.status}</StatusBadge>
-                          </DocumentMeta>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem'}}>
+                <Card>
+                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Recent Documents</h2>
+                  {documents.length === 0 ? (
+                    <p style={{color: '#6b7280', textAlign: 'center', padding: '2rem'}}>
+                      No documents uploaded yet. Start by uploading a document.
+                    </p>
+                  ) : (
+                    documents.slice(0, 5).map((doc, index) => (
+                      <DocumentCard key={`dashboard-doc-${doc.id || doc.session_id || index}`}>
+                        <DocumentHeader>
+                          <div>
+                            <DocumentTitle>{doc.filename}</DocumentTitle>
+                            <DocumentMeta>
+                              Uploaded: {new Date(doc.upload_date).toLocaleDateString()} |
+                              Rows: {doc.row_count} |
+                              Status: <StatusBadge $status={doc.status}>{doc.status}</StatusBadge>
+                            </DocumentMeta>
+                          </div>
+                          <div style={{display: 'flex', gap: '0.5rem'}}>
+                            <Button $variant="secondary" onClick={() => viewDocument(doc.session_id || doc.id)}>
+                              <Eye size={16} />
+                              View
+                            </Button>
+                          </div>
+                        </DocumentHeader>
+                      </DocumentCard>
+                    ))
+                  )}
+                </Card>
+
+                <Card>
+                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937', display: 'flex', alignItems: 'center'}}>
+                    <Database size={20} style={{marginRight: '0.5rem'}} />
+                    Saved Analyses
+                  </h2>
+                  
+                  <FormGroup>
+                    <Label>Quick Load Analysis</Label>
+                    <div style={{display: 'flex', gap: '0.5rem'}}>
+                      <Select
+                        value={selectedSavedAnalysis}
+                        onChange={(e) => setSelectedSavedAnalysis(e.target.value)}
+                        style={{flex: 1}}
+                      >
+                        <option value="">Choose saved analysis...</option>
+                        {savedAnalyses.map((analysis, index) => (
+                          <option key={`saved-analysis-${analysis.id || index}`} value={analysis.id}>
+                            {analysis.analysis_name} ({analysis.analysis_type})
+                          </option>
+                        ))}
+                      </Select>
+                      <Button
+                        $variant="secondary"
+                        onClick={() => {
+                          if (selectedSavedAnalysis) {
+                            loadSavedAnalysis(selectedSavedAnalysis);
+                          }
+                        }}
+                        disabled={!selectedSavedAnalysis}
+                      >
+                        <RefreshCw size={16} />
+                        Load
+                      </Button>
+                    </div>
+                  </FormGroup>
+
+                  {savedAnalyses.length === 0 ? (
+                    <p style={{color: '#6b7280', textAlign: 'center', padding: '2rem'}}>
+                      No saved analyses yet. Complete an analysis to save it.
+                    </p>
+                  ) : (
+                    <div style={{maxHeight: '300px', overflowY: 'auto'}}>
+                      {savedAnalyses.slice(0, 5).map((analysis, index) => (
+                        <DocumentCard key={`saved-analysis-card-${analysis.id || index}`} style={{marginBottom: '1rem'}}>
+                          <DocumentHeader>
+                            <div>
+                              <DocumentTitle style={{fontSize: '1rem'}}>{analysis.analysis_name}</DocumentTitle>
+                              <DocumentMeta>
+                                Type: {analysis.analysis_type} |
+                                Created: {new Date(analysis.created_date).toLocaleDateString()}
+                              </DocumentMeta>
+                            </div>
+                            <div style={{display: 'flex', gap: '0.5rem'}}>
+                              <Button
+                                $variant="secondary"
+                                style={{padding: '0.5rem'}}
+                                onClick={() => loadSavedAnalysis(analysis.id)}
+                              >
+                                <RefreshCw size={14} />
+                              </Button>
+                              <Button
+                                $variant="danger"
+                                style={{padding: '0.5rem'}}
+                                onClick={() => deleteSavedAnalysis(analysis.id)}
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            </div>
+                          </DocumentHeader>
+                        </DocumentCard>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              {/* Dashboard Visualizations for Loaded Analysis */}
+              {(analysisResults || influentialVoices || responses) && (
+                <div style={{marginTop: '2rem'}}>
+                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937', display: 'flex', alignItems: 'center'}}>
+                    <BarChart3 size={20} style={{marginRight: '0.5rem'}} />
+                    Analysis Visualizations
+                  </h2>
+                  
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem'}}>
+                    {/* Sentiment Distribution Chart */}
+                    {analysisResults && (
+                      <ChartContainer>
+                        <ChartTitle>Sentiment Distribution</ChartTitle>
+                        <PieChartContainer>
+                          <PieChart colors={`
+                            #10b981 0deg ${(analysisResults.statistics?.positive || 0) / (analysisResults.analyzed_data?.length || 1) * 360}deg,
+                            #ef4444 ${(analysisResults.statistics?.positive || 0) / (analysisResults.analyzed_data?.length || 1) * 360}deg ${((analysisResults.statistics?.positive || 0) + (analysisResults.statistics?.negative || 0)) / (analysisResults.analyzed_data?.length || 1) * 360}deg,
+                            #6b7280 ${((analysisResults.statistics?.positive || 0) + (analysisResults.statistics?.negative || 0)) / (analysisResults.analyzed_data?.length || 1) * 360}deg 360deg
+                          `}>
+                            <PieCenter>
+                              {analysisResults.analyzed_data?.length || 0}
+                            </PieCenter>
+                          </PieChart>
+                          <LegendContainer>
+                            <LegendItem>
+                              <LegendColor color="#10b981" />
+                              Positive: {analysisResults.statistics?.positive || 0}
+                            </LegendItem>
+                            <LegendItem>
+                              <LegendColor color="#ef4444" />
+                              Negative: {analysisResults.statistics?.negative || 0}
+                            </LegendItem>
+                            <LegendItem>
+                              <LegendColor color="#6b7280" />
+                              Neutral: {analysisResults.statistics?.neutral || 0}
+                            </LegendItem>
+                          </LegendContainer>
+                        </PieChartContainer>
+                      </ChartContainer>
+                    )}
+
+                    {/* Exposure Score Distribution */}
+                    {analysisResults?.exposure_statistics && (
+                      <ChartContainer>
+                        <ChartTitle>Exposure Score Analysis</ChartTitle>
+                        <BarChart>
+                          <BarItem>
+                            <BarLabel>Max Exposure</BarLabel>
+                            <BarContainer>
+                              <BarFill
+                                color="#f59e0b"
+                                percentage={100}
+                              />
+                            </BarContainer>
+                            <BarValue>{analysisResults.exposure_statistics.max_exposure?.toLocaleString()}</BarValue>
+                          </BarItem>
+                          <BarItem>
+                            <BarLabel>Avg Exposure</BarLabel>
+                            <BarContainer>
+                              <BarFill
+                                color="#8b5cf6"
+                                percentage={(analysisResults.exposure_statistics.avg_exposure / analysisResults.exposure_statistics.max_exposure) * 100}
+                              />
+                            </BarContainer>
+                            <BarValue>{analysisResults.exposure_statistics.avg_exposure?.toLocaleString()}</BarValue>
+                          </BarItem>
+                          <BarItem>
+                            <BarLabel>Total Exposure</BarLabel>
+                            <BarContainer>
+                              <BarFill
+                                color="#2596be"
+                                percentage={80}
+                              />
+                            </BarContainer>
+                            <BarValue>{analysisResults.exposure_statistics.total_exposure?.toLocaleString()}</BarValue>
+                          </BarItem>
+                        </BarChart>
+                      </ChartContainer>
+                    )}
+
+                    {/* Profile Distribution Chart */}
+                    {analysisResults?.profile_distribution && (
+                      <ChartContainer>
+                        <ChartTitle>Profile Type Distribution</ChartTitle>
+                        <BarChart>
+                          {Object.entries(analysisResults.profile_distribution).map(([profile, count], index) => {
+                            const colors = ['#10b981', '#ef4444', '#f59e0b', '#8b5cf6'];
+                            const maxCount = Math.max(...Object.values(analysisResults.profile_distribution));
+                            return (
+                              <BarItem key={profile}>
+                                <BarLabel>{profile}</BarLabel>
+                                <BarContainer>
+                                  <BarFill
+                                    color={colors[index % colors.length]}
+                                    percentage={(count / maxCount) * 100}
+                                  />
+                                </BarContainer>
+                                <BarValue>{count}</BarValue>
+                              </BarItem>
+                            );
+                          })}
+                        </BarChart>
+                      </ChartContainer>
+                    )}
+
+                    {/* Influential Voices Summary */}
+                    {influentialVoices && (
+                      <ChartContainer>
+                        <ChartTitle>Influential Voices Summary</ChartTitle>
+                        <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                          <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                            <span style={{color: '#6b7280'}}>Priority Voices:</span>
+                            <strong>{influentialVoices.statistics?.priority_voices || 0}</strong>
+                          </div>
+                          <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                            <span style={{color: '#6b7280'}}>Negative High-Impact:</span>
+                            <strong style={{color: '#ef4444'}}>{influentialVoices.statistics?.negative_priority_voices || 0}</strong>
+                          </div>
+                          <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                            <span style={{color: '#6b7280'}}>Max Exposure:</span>
+                            <strong>{influentialVoices.statistics?.exposure_stats?.max_exposure?.toLocaleString() || '0'}</strong>
+                          </div>
+                          <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                            <span style={{color: '#6b7280'}}>Counter-Statements:</span>
+                            <strong style={{color: '#10b981'}}>{influentialVoices.priority_voices?.filter(v => v.counter_statement && v.counter_statement !== '').length || 0}</strong>
+                          </div>
                         </div>
-                        <div style={{display: 'flex', gap: '0.5rem'}}>
-                          <Button $variant="secondary" onClick={() => viewDocument(doc.id)}>
-                            <Eye size={16} />
-                            View
-                          </Button>
-                        </div>
-                      </DocumentHeader>
-                    </DocumentCard>
-                  ))
-                )}
-              </Card>
+                      </ChartContainer>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1378,9 +2173,19 @@ function App() {
                 <Upload size={48} style={{margin: '0 auto 1rem', color: '#2596be'}} />
                 <h3 style={{color: '#1f2937', marginBottom: '0.5rem'}}>Drop your CSV or XLSX file here</h3>
                 <p style={{color: '#6b7280', fontSize: '0.875rem'}}>
-                  Or click to select file (Max 13,000 rows supported)
+                  Or click to select file
                 </p>
               </DropZone>
+
+              {(loading || uploadProgress > 0) && (
+                <ProgressContainer>
+                  <ProgressText>{uploadStatus}</ProgressText>
+                  <ProgressBar>
+                    <ProgressFill $progress={uploadProgress} />
+                  </ProgressBar>
+                  <ProgressText>{uploadProgress}%</ProgressText>
+                </ProgressContainer>
+              )}
 
               <div style={{marginTop: '2rem'}}>
                 <h3 style={{marginBottom: '1rem', color: '#1f2937'}}>Upload History</h3>
@@ -1389,8 +2194,8 @@ function App() {
                     No documents uploaded yet.
                   </p>
                 ) : (
-                  documents.map(doc => (
-                    <DocumentCard key={doc.id}>
+                  documents.map((doc, index) => (
+                    <DocumentCard key={`upload-doc-${doc.id || doc.session_id || index}`}>
                       <DocumentHeader>
                         <div>
                           <DocumentTitle>{doc.filename}</DocumentTitle>
@@ -1401,7 +2206,7 @@ function App() {
                           </DocumentMeta>
                         </div>
                         <div style={{display: 'flex', gap: '0.5rem'}}>
-                          <Button $variant="secondary" onClick={() => viewDocument(doc.id)}>
+                          <Button $variant="secondary" onClick={() => viewDocument(doc.session_id || doc.id)}>
                             <Eye size={16} />
                             View
                           </Button>
@@ -1429,8 +2234,8 @@ function App() {
                       No documents available. Upload a document first.
                     </p>
                   ) : (
-                    documents.map(doc => (
-                      <DocumentCard key={doc.id}>
+                    documents.map((doc, index) => (
+                      <DocumentCard key={`viewer-doc-${doc.id || doc.session_id || index}`}>
                         <DocumentHeader>
                           <div>
                             <DocumentTitle>{doc.filename}</DocumentTitle>
@@ -1440,7 +2245,7 @@ function App() {
                               Status: <StatusBadge $status={doc.status}>{doc.status}</StatusBadge>
                             </DocumentMeta>
                           </div>
-                          <Button onClick={() => viewDocument(doc.id)}>
+                          <Button onClick={() => viewDocument(doc.session_id || doc.id)}>
                             <Eye size={16} />
                             View Data
                           </Button>
@@ -1461,46 +2266,19 @@ function App() {
                     </div>
                     
                     <DocumentMeta style={{marginBottom: '1.5rem'}}>
-                      Uploaded: {new Date(currentDocumentData.upload_date).toLocaleDateString()} |
-                      Rows: {currentDocumentData.row_count} |
-                      Columns: {currentDocumentData.columns?.length}
+                      Uploaded: {currentDocumentData.upload_date ? new Date(currentDocumentData.upload_date).toLocaleDateString() : 'Unknown'} |
+                      Rows: {currentDocumentData.row_count || 0} |
+                      Columns: {currentDocumentData.columns?.length || 0}
                     </DocumentMeta>
                   </Card>
 
-                  <TableContainer>
-                    <TableHeader>
-                      <TableTitle>Document Data ({currentDocumentData.row_count} rows)</TableTitle>
-                      <TableActions>
-                        <Button $variant="secondary" style={{padding: '0.5rem'}}>
-                          <Filter size={16} />
-                        </Button>
-                        <Button $variant="secondary" style={{padding: '0.5rem'}}>
-                          <Search size={16} />
-                        </Button>
-                      </TableActions>
-                    </TableHeader>
-                    <Table>
-                      <thead>
-                        <tr>
-                          {currentDocumentData.columns?.map(col => (
-                            <Th key={col}>{col}</Th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {currentDocumentData.data?.slice(0, 50).map((row, idx) => (
-                          <tr key={idx}>
-                            {currentDocumentData.columns?.map(col => (
-                              <Td key={col} title={row[col]}>
-                                {String(row[col] || '').slice(0, 100)}
-                                {String(row[col] || '').length > 100 ? '...' : ''}
-                              </Td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </Table>
-                  </TableContainer>
+                  <FastDataTable
+                    data={currentDocumentData.data?.map(row =>
+                      currentDocumentData.columns?.map(col => row[col] || '')
+                    )}
+                    columns={currentDocumentData.columns}
+                    title={`Document Data (${currentDocumentData.row_count} rows)`}
+                  />
                 </div>
               )}
             </div>
@@ -1515,16 +2293,52 @@ function App() {
                 <Label>Select Document to Analyze</Label>
                 <Select
                   value={selectedDocument}
-                  onChange={(e) => setSelectedDocument(e.target.value)}
+                  onChange={(e) => {
+                    const docId = e.target.value;
+                    setSelectedDocument(docId);
+                    
+                    // Update text column selection when document changes
+                    if (docId) {
+                      const existingSessions = JSON.parse(localStorage.getItem('meioSessions') || '[]');
+                      const docInfo = existingSessions.find(doc => doc.session_id === docId || doc.id === docId);
+                      const detectedCol = docInfo?.detected_text_column || '';
+                      setDetectedTextColumn(detectedCol);
+                      setSelectedTextColumn(detectedCol);
+                    }
+                  }}
                 >
                   <option value="">Choose a document...</option>
-                  {documents.map(doc => (
-                    <option key={doc.id} value={doc.id}>
+                  {documents.map((doc, index) => (
+                    <option key={`analysis-option-${doc.id || doc.session_id || index}`} value={doc.session_id || doc.id}>
                       {doc.filename} ({doc.row_count} rows)
                     </option>
                   ))}
                 </Select>
               </FormGroup>
+
+              {selectedDocument && currentDocumentData && (
+                <FormGroup>
+                  <Label>Text Column for Analysis</Label>
+                  <Select
+                    value={selectedTextColumn}
+                    onChange={(e) => setSelectedTextColumn(e.target.value)}
+                  >
+                    {currentDocumentData.columns?.map(col => (
+                      <option key={col} value={col}>
+                        {col} {col === detectedTextColumn ? '(Auto-detected)' : ''}
+                      </option>
+                    ))}
+                  </Select>
+                  {detectedTextColumn && (
+                    <div style={{marginTop: '0.5rem', fontSize: '0.875rem', color: '#6b7280'}}>
+                      💡 Auto-detected text column: <strong>{detectedTextColumn}</strong>
+                      {selectedTextColumn !== detectedTextColumn && (
+                        <span style={{color: '#f59e0b'}}> (You've overridden this selection)</span>
+                      )}
+                    </div>
+                  )}
+                </FormGroup>
+              )}
 
               <ButtonGroup>
                 <Button onClick={analyzeDocument} disabled={!selectedDocument || loading}>
@@ -1577,8 +2391,8 @@ function App() {
                           )}
                           {item.topics && item.topics.length > 0 && (
                             <TagsContainer>
-                              {item.topics && item.topics.map((topic, idx) => (
-                                <TopicBadge key={`topic-${item.index}-${idx}`}>
+                              {item.topics.map((topic, idx) => (
+                                <TopicBadge key={`streaming-topic-${item.index}-${idx}`}>
                                   <Tag size={12} />
                                   {topic}
                                 </TopicBadge>
@@ -1618,56 +2432,120 @@ function App() {
                       <StatNumber>{analysisResults.average_confidence && !isNaN(analysisResults.average_confidence) ? (analysisResults.average_confidence * 100).toFixed(1) : '0.0'}%</StatNumber>
                       <StatLabel>Average Confidence</StatLabel>
                     </StatCard>
+                    {analysisResults.exposure_statistics && (
+                      <>
+                        <StatCard>
+                          <StatNumber color="#f59e0b">{analysisResults.exposure_statistics.max_exposure?.toLocaleString() || '0'}</StatNumber>
+                          <StatLabel>Max Exposure Score</StatLabel>
+                        </StatCard>
+                        <StatCard>
+                          <StatNumber color="#8b5cf6">{analysisResults.exposure_statistics.total_exposure?.toLocaleString() || '0'}</StatNumber>
+                          <StatLabel>Total Exposure</StatLabel>
+                        </StatCard>
+                      </>
+                    )}
                   </StatsGrid>
 
-                  <TableContainer>
-                    <TableHeader>
-                      <TableTitle>Analysis Results</TableTitle>
-                    </TableHeader>
-                    <Table>
-                      <thead>
-                        <tr>
-                          <Th>Content</Th>
-                          <Th>Sentiment</Th>
-                          <Th>Confidence</Th>
-                          <Th>Topics</Th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {analysisResults.analyzed_data?.slice(0, 50).map((row, idx) => {
-                          const textContent = Object.values(row).find(val =>
-                            typeof val === 'string' && val.length > 10 &&
-                            !['sentiment', 'confidence', 'topic', 'topics'].includes(val)
-                          ) || 'No text content';
+                  {/* Exposure Filter */}
+                  <div style={{display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'center'}}>
+                    <Label style={{margin: 0}}>Filter by Exposure Score:</Label>
+                    <Select
+                      value={filterSentiment}
+                      onChange={(e) => setFilterSentiment(e.target.value)}
+                      style={{width: 'auto', minWidth: '150px'}}
+                    >
+                      <option value="all">All Posts</option>
+                      <option value="high_exposure">High Exposure (≥500K)</option>
+                      <option value="medium_exposure">Medium Exposure (100K-500K)</option>
+                      <option value="low_exposure">Low Exposure (&lt;100K)</option>
+                    </Select>
+                    <Button
+                      $variant="secondary"
+                      style={{padding: '0.5rem'}}
+                      onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+                    >
+                      {sortOrder === 'desc' ? <SortDesc size={16} /> : <SortAsc size={16} />}
+                      Sort by Exposure {sortOrder === 'desc' ? 'High to Low' : 'Low to High'}
+                    </Button>
+                  </div>
 
-                          const topics = Array.isArray(row.topics) ? row.topics : [row.topic || 'General'];
-                          
-                          return (
-                            <tr key={idx}>
-                              <ContentCell>{String(textContent)}</ContentCell>
-                              <Td>
-                                <SentimentBadge $sentiment={row.sentiment}>
-                                  {getSentimentIcon(row.sentiment)}
-                                  {row.sentiment}
-                                </SentimentBadge>
-                              </Td>
-                              <Td>{row.confidence && !isNaN(row.confidence) ? (row.confidence * 100).toFixed(1) : '0.0'}%</Td>
-                              <Td>
-                                <TagsContainer>
-                                  {topics.slice(0, 3).map((topic, topicIdx) => (
-                                    <TopicBadge key={`analysis-topic-${idx}-${topicIdx}`}>
-                                      <Tag size={12} />
-                                      {topic}
-                                    </TopicBadge>
-                                  ))}
-                                </TagsContainer>
-                              </Td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </Table>
-                  </TableContainer>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+                    <h3 style={{color: '#1f2937', margin: 0}}>Analysis Results</h3>
+                    <Button
+                      style={{background: '#10b981'}}
+                      onClick={() => {
+                        const analysisName = prompt('Enter a name for this analysis:', `Sentiment_Analysis_${new Date().toISOString().slice(0,10)}`);
+                        if (analysisName) {
+                          saveAnalysisSession(analysisName, 'sentiment', analysisResults);
+                        }
+                      }}
+                    >
+                      <Database size={16} />
+                      Save Analysis
+                    </Button>
+                  </div>
+
+                  <FastDataTable
+                    data={analysisResults.analyzed_data?.filter(row => {
+                      const exposureScore = row.exposure_score || 0;
+                      if (filterSentiment === 'all') return true;
+                      if (filterSentiment === 'high_exposure') return exposureScore >= 500000;
+                      if (filterSentiment === 'medium_exposure') return exposureScore >= 100000 && exposureScore < 500000;
+                      if (filterSentiment === 'low_exposure') return exposureScore < 100000;
+                      return true;
+                    })
+                    .sort((a, b) => {
+                      const aExp = a.exposure_score || 0;
+                      const bExp = b.exposure_score || 0;
+                      return sortOrder === 'desc' ? bExp - aExp : aExp - bExp;
+                    })
+                    .map(row => {
+                      const textContent = Object.values(row).find(val =>
+                        typeof val === 'string' && val.length > 10 &&
+                        !['sentiment', 'confidence', 'topic', 'topics', 'exposure_score', 'profile_tag', 'author_url', 'content_url'].includes(val)
+                      ) || 'No text content';
+                      
+                      const topics = Array.isArray(row.topics) ? row.topics.join(', ') : (row.topic || 'General');
+                      const confidence = row.confidence && !isNaN(row.confidence) ? (row.confidence * 100).toFixed(1) : '0.0';
+                      
+                      // Use max_exp directly if available, otherwise use exposure_score
+                      let exposureScore = 0;
+                      if (row.max_exp !== undefined && row.max_exp !== null && row.max_exp !== '') {
+                        try {
+                          exposureScore = typeof row.max_exp === 'string' ?
+                            parseFloat(row.max_exp.replace(',', '')) :
+                            parseFloat(row.max_exp);
+                        } catch (e) {
+                          exposureScore = row.exposure_score || 0;
+                        }
+                      } else {
+                        exposureScore = row.exposure_score || 0;
+                      }
+                      
+                      const exposureScoreFormatted = exposureScore.toLocaleString();
+                      const profileTag = row.profile_tag || 'UNTAGGED';
+                      
+                      return [
+                        String(textContent),
+                        row.sentiment || 'neutral',
+                        confidence,
+                        topics,
+                        exposureScore,
+                        profileTag,
+                        row.author_url || '-',
+                        row.content_url || '-'
+                      ];
+                    })}
+                    columns={['Content', 'Sentiment', 'Confidence', 'Topics', 'Exposure Score', 'Profile Type', 'Author URL', 'Content URL']}
+                    title={`Analysis Results (${analysisResults.analyzed_data?.filter(row => {
+                      const exposureScore = row.exposure_score || 0;
+                      if (filterSentiment === 'all') return true;
+                      if (filterSentiment === 'high_exposure') return exposureScore >= 500000;
+                      if (filterSentiment === 'medium_exposure') return exposureScore >= 100000 && exposureScore < 500000;
+                      if (filterSentiment === 'low_exposure') return exposureScore < 100000;
+                      return true;
+                    }).length || 0} shown)`}
+                  />
                 </div>
               )}
             </Card>
@@ -1682,16 +2560,52 @@ function App() {
                 <Label>Select Analyzed Document</Label>
                 <Select
                   value={selectedDocument}
-                  onChange={(e) => setSelectedDocument(e.target.value)}
+                  onChange={(e) => {
+                    const docId = e.target.value;
+                    setSelectedDocument(docId);
+                    
+                    // Update text column selection when document changes
+                    if (docId) {
+                      const existingSessions = JSON.parse(localStorage.getItem('meioSessions') || '[]');
+                      const docInfo = existingSessions.find(doc => doc.session_id === docId || doc.id === docId);
+                      const detectedCol = docInfo?.detected_text_column || '';
+                      setDetectedTextColumn(detectedCol);
+                      setSelectedTextColumn(detectedCol);
+                    }
+                  }}
                 >
                   <option value="">Choose a document...</option>
-                  {documents.map(doc => (
-                    <option key={doc.id} value={doc.id}>
+                  {documents.map((doc, index) => (
+                    <option key={`response-option-${doc.id || doc.session_id || index}`} value={doc.session_id || doc.id}>
                       {doc.filename} ({doc.row_count} rows)
                     </option>
                   ))}
                 </Select>
               </FormGroup>
+
+              {selectedDocument && currentDocumentData && (
+                <FormGroup>
+                  <Label>Text Column for Response Generation</Label>
+                  <Select
+                    value={selectedTextColumn}
+                    onChange={(e) => setSelectedTextColumn(e.target.value)}
+                  >
+                    {currentDocumentData.columns?.map(col => (
+                      <option key={col} value={col}>
+                        {col} {col === detectedTextColumn ? '(Auto-detected)' : ''}
+                      </option>
+                    ))}
+                  </Select>
+                  {detectedTextColumn && (
+                    <div style={{marginTop: '0.5rem', fontSize: '0.875rem', color: '#6b7280'}}>
+                      💡 Using text column: <strong>{selectedTextColumn}</strong>
+                      {selectedTextColumn !== detectedTextColumn && (
+                        <span style={{color: '#f59e0b'}}> (Overridden from auto-detected: {detectedTextColumn})</span>
+                      )}
+                    </div>
+                  )}
+                </FormGroup>
+              )}
 
               <ButtonGroup>
                 <Button onClick={generateResponses} disabled={!selectedDocument || loading}>
@@ -1750,47 +2664,32 @@ function App() {
 
               {responses && (
                 <div style={{marginTop: '2rem'}}>
-                  <h3 style={{marginBottom: '1rem', color: '#1f2937'}}>Generated Responses</h3>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+                    <h3 style={{color: '#1f2937', margin: 0}}>Generated Responses</h3>
+                    <Button
+                      style={{background: '#10b981'}}
+                      onClick={() => {
+                        const analysisName = prompt('Enter a name for this analysis:', `Response_Generation_${new Date().toISOString().slice(0,10)}`);
+                        if (analysisName) {
+                          saveAnalysisSession(analysisName, 'responses', responses);
+                        }
+                      }}
+                    >
+                      <Database size={16} />
+                      Save Analysis
+                    </Button>
+                  </div>
                   
-                  <TableContainer>
-                    <TableHeader>
-                      <TableTitle>Response Strategy</TableTitle>
-                    </TableHeader>
-                    <Table>
-                      <thead>
-                        <tr>
-                          <Th>Original Content</Th>
-                          <Th>Sentiment</Th>
-                          <Th>Topics</Th>
-                          <Th>Generated Response</Th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {responses.responses?.slice(0, 50).map((response, idx) => (
-                          <tr key={idx}>
-                            <ContentCell>{response.original_text}</ContentCell>
-                            <Td>
-                              <SentimentBadge $sentiment={response.sentiment}>
-                                {getSentimentIcon(response.sentiment)}
-                                {response.sentiment}
-                              </SentimentBadge>
-                            </Td>
-                            <Td>
-                              <TagsContainer>
-                                {response.topics?.slice(0, 3).map((topic, topicIdx) => (
-                                  <TopicBadge key={`response-topic-${idx}-${topicIdx}`}>
-                                    <Tag size={12} />
-                                    {topic}
-                                  </TopicBadge>
-                                ))}
-                              </TagsContainer>
-                            </Td>
-                            <ContentCell>{response.generated_comment}</ContentCell>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </Table>
-                  </TableContainer>
+                  <FastDataTable
+                    data={responses.responses?.map(response => [
+                      response.original_text || '',
+                      response.sentiment || 'neutral',
+                      response.topics?.join(', ') || 'General',
+                      response.generated_comment || ''
+                    ])}
+                    columns={['Original Content', 'Sentiment', 'Topics', 'Generated Response']}
+                    title="Response Strategy"
+                  />
                 </div>
               )}
             </Card>
@@ -1808,8 +2707,8 @@ function App() {
                   onChange={(e) => setSelectedDocument(e.target.value)}
                 >
                   <option value="">Choose a document...</option>
-                  {documents.filter(doc => doc.status === 'analyzed' || doc.status === 'completed').map(doc => (
-                    <option key={doc.id} value={doc.id}>
+                  {documents.filter(doc => doc.status === 'analyzed' || doc.status === 'completed').map((doc, index) => (
+                    <option key={`report-option-${doc.id || doc.session_id || index}`} value={doc.session_id || doc.id}>
                       {doc.filename} ({doc.status})
                     </option>
                   ))}
@@ -1819,16 +2718,16 @@ function App() {
               <div style={{background: '#f8fafc', padding: '1.5rem', borderRadius: '8px', margin: '1.5rem 0'}}>
                 <h3 style={{color: '#1f2937', marginBottom: '1rem'}}>Report Includes:</h3>
                 <ul style={{color: '#6b7280', lineHeight: '1.6'}}>
-                  <li>📋 Executive Summary with key insights and recommendations</li>
-                  <li>📊 Volume Metrics and trend analysis</li>
-                  <li>😊 Detailed Sentiment Analysis breakdown</li>
-                  <li>🧍‍♂️ Audience Insights and demographics (where available)</li>
-                  <li>🔥 Top Performing Content and engagement metrics</li>
-                  <li>🗣️ Key Topics & Hashtags analysis</li>
-                  <li>⚔️ Competitor & Industry Benchmarking</li>
-                  <li>🚨 Crisis or Issue Tracking (if relevant)</li>
-                  <li>💡 Strategic Insights & Recommendations</li>
-                  <li>📅 Methodology & Data Sources</li>
+                  <li>Executive Summary with key insights and recommendations</li>
+                  <li>Volume Metrics and trend analysis</li>
+                  <li>Detailed Sentiment Analysis breakdown</li>
+                  <li>Audience Insights and demographics (where available)</li>
+                  <li>Top Performing Content and engagement metrics</li>
+                  <li>Key Topics & Hashtags analysis</li>
+                  <li>Competitor & Industry Benchmarking</li>
+                  <li>Crisis or Issue Tracking (if relevant)</li>
+                  <li>Strategic Insights & Recommendations</li>
+                  <li>Methodology & Data Sources</li>
                 </ul>
               </div>
 
@@ -1848,6 +2747,273 @@ function App() {
                 )}
               </ButtonGroup>
             </Card>
+          )}
+
+          {/* Influential Voices Analysis */}
+          {activeNav === 'influential-voices' && (
+            <div>
+              <Card>
+                <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>
+                  <Target size={24} style={{marginRight: '0.5rem', verticalAlign: 'middle'}} />
+                  Influential Voices Analysis
+                </h2>
+                
+                <FormGroup>
+                  <Label>Select Analyzed Document</Label>
+                  <Select
+                    value={selectedDocument}
+                    onChange={(e) => {
+                      const docId = e.target.value;
+                      setSelectedDocument(docId);
+                      
+                      // Update text column selection when document changes
+                      if (docId) {
+                        const existingSessions = JSON.parse(localStorage.getItem('meioSessions') || '[]');
+                        const docInfo = existingSessions.find(doc => doc.session_id === docId || doc.id === docId);
+                        const detectedCol = docInfo?.detected_text_column || '';
+                        setDetectedTextColumn(detectedCol);
+                        setSelectedTextColumn(detectedCol);
+                      }
+                    }}
+                  >
+                    <option value="">Choose a document...</option>
+                    {documents.filter(doc => doc.status === 'analyzed' || doc.status === 'completed').map((doc, index) => (
+                      <option key={`influential-option-${doc.id || doc.session_id || index}`} value={doc.session_id || doc.id}>
+                        {doc.filename} ({doc.row_count} rows)
+                      </option>
+                    ))}
+                  </Select>
+                </FormGroup>
+
+                {selectedDocument && currentDocumentData && (
+                  <FormGroup>
+                    <Label>Text Column for Analysis</Label>
+                    <Select
+                      value={selectedTextColumn}
+                      onChange={(e) => setSelectedTextColumn(e.target.value)}
+                    >
+                      {currentDocumentData.columns?.map(col => (
+                        <option key={col} value={col}>
+                          {col} {col === detectedTextColumn ? '(Auto-detected)' : ''}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormGroup>
+                )}
+
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', margin: '1.5rem 0'}}>
+                  <FormGroup>
+                    <Label>Analysis Method</Label>
+                    <Select
+                      value={useThreshold ? 'threshold' : 'top'}
+                      onChange={(e) => setUseThreshold(e.target.value === 'threshold')}
+                    >
+                      <option value="threshold">Use Exposure Threshold</option>
+                      <option value="top">Use Top Count</option>
+                    </Select>
+                  </FormGroup>
+
+                  {useThreshold ? (
+                    <FormGroup>
+                      <Label>Exposure Threshold (minimum exposure score)</Label>
+                      <Input
+                        type="number"
+                        value={exposureThreshold}
+                        onChange={(e) => setExposureThreshold(Number(e.target.value))}
+                        placeholder="500000"
+                        min="0"
+                        step="1000"
+                      />
+                      <div style={{fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem'}}>
+                        Posts with exposure score ≥ {exposureThreshold.toLocaleString()} will be analyzed
+                      </div>
+                    </FormGroup>
+                  ) : (
+                    <FormGroup>
+                      <Label>Top Count (number of most influential)</Label>
+                      <Input
+                        type="number"
+                        value={topCount}
+                        onChange={(e) => setTopCount(Number(e.target.value))}
+                        placeholder="5"
+                        min="1"
+                        max="50"
+                      />
+                      <div style={{fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem'}}>
+                        Top {topCount} most influential voices will be analyzed
+                      </div>
+                    </FormGroup>
+                  )}
+                </div>
+
+                <div style={{background: '#f0f9ff', padding: '1rem', borderRadius: '8px', margin: '1.5rem 0', border: '1px solid #bfdbfe'}}>
+                  <h4 style={{color: '#1e40af', marginBottom: '0.5rem', display: 'flex', alignItems: 'center'}}>
+                    <Crown size={16} style={{marginRight: '0.5rem'}} />
+                    About Influential Voices Analysis
+                  </h4>
+                  <p style={{color: '#1e40af', fontSize: '0.875rem', lineHeight: '1.4', margin: 0}}>
+                    This analysis identifies high-impact negative voices based on exposure scores (like Cyabra data) and generates strategic counter-statements.
+                    Only negative sentiment posts from influential profiles will receive AI-generated responses.
+                  </p>
+                </div>
+
+                <ButtonGroup>
+                  <Button onClick={analyzeInfluentialVoices} disabled={!selectedDocument || loading}>
+                    <Zap size={16} />
+                    Analyze Influential Voices
+                  </Button>
+                  {influentialVoices && (
+                    <Button
+                      style={{background: '#10b981'}}
+                      onClick={() => {
+                        const analysisName = prompt('Enter a name for this analysis:', `Influential_Voices_${new Date().toISOString().slice(0,10)}`);
+                        if (analysisName) {
+                          saveAnalysisSession(analysisName, 'influential_voices', influentialVoices);
+                        }
+                      }}
+                    >
+                      <Database size={16} />
+                      Save Analysis
+                    </Button>
+                  )}
+                  {selectedDocument && (
+                    <Button $variant="secondary" onClick={() => {
+                      const doc = documents.find(d => d.id === selectedDocument);
+                      if (doc) viewDocument(doc.id);
+                    }}>
+                      <Eye size={16} />
+                      View Document
+                    </Button>
+                  )}
+                </ButtonGroup>
+              </Card>
+
+              {/* Analysis Results */}
+              {influentialVoices && (
+                <Card>
+                  <h3 style={{marginBottom: '1.5rem', color: '#1f2937', display: 'flex', alignItems: 'center'}}>
+                    <Crown size={20} style={{marginRight: '0.5rem'}} />
+                    Influential Voices Analysis Results
+                  </h3>
+                  
+                  {/* Statistics */}
+                  <StatsGrid>
+                    <StatCard>
+                      <StatNumber color="#2596be">{influentialVoices.statistics?.total_voices || 0}</StatNumber>
+                      <StatLabel>Total Voices</StatLabel>
+                    </StatCard>
+                    <StatCard>
+                      <StatNumber color="#ef4444">{influentialVoices.statistics?.priority_voices || 0}</StatNumber>
+                      <StatLabel>Priority Voices</StatLabel>
+                    </StatCard>
+                    <StatCard>
+                      <StatNumber color="#f59e0b">{influentialVoices.statistics?.negative_priority_voices || 0}</StatNumber>
+                      <StatLabel>Negative High-Impact</StatLabel>
+                    </StatCard>
+                    <StatCard>
+                      <StatNumber>{influentialVoices.statistics?.exposure_stats?.max_exposure?.toLocaleString() || '0'}</StatNumber>
+                      <StatLabel>Max Exposure Score</StatLabel>
+                    </StatCard>
+                  </StatsGrid>
+
+                  {/* Filters and Sorting */}
+                  <div style={{display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center'}}>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                      <Filter size={16} />
+                      <Label style={{margin: 0}}>Filter by Sentiment:</Label>
+                      <Select
+                        value={filterSentiment}
+                        onChange={(e) => setFilterSentiment(e.target.value)}
+                        style={{width: 'auto', minWidth: '120px'}}
+                      >
+                        <option value="all">All</option>
+                        <option value="negative">Negative Only</option>
+                        <option value="positive">Positive Only</option>
+                        <option value="neutral">Neutral Only</option>
+                      </Select>
+                    </div>
+
+                    <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                      {sortOrder === 'desc' ? <SortDesc size={16} /> : <SortAsc size={16} />}
+                      <Label style={{margin: 0}}>Sort by:</Label>
+                      <Select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        style={{width: 'auto', minWidth: '140px'}}
+                      >
+                        <option value="exposure">Exposure Score</option>
+                        <option value="confidence">Confidence</option>
+                        <option value="influence_rank">Influence Rank</option>
+                      </Select>
+                      <Button
+                        $variant="secondary"
+                        style={{padding: '0.5rem'}}
+                        onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+                      >
+                        {sortOrder === 'desc' ? <SortDesc size={16} /> : <SortAsc size={16} />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Influential Voices Table */}
+                  {influentialVoices.priority_voices && influentialVoices.priority_voices.length > 0 && (
+                    <FastDataTable
+                      data={influentialVoices.priority_voices
+                        .filter(voice => {
+                          if (filterSentiment === 'all') return true;
+                          return voice.sentiment === filterSentiment;
+                        })
+                        .sort((a, b) => {
+                          let aVal = a[sortBy];
+                          let bVal = b[sortBy];
+                          
+                          if (typeof aVal === 'string') {
+                            aVal = aVal.toLowerCase();
+                            bVal = bVal.toLowerCase();
+                          }
+                          
+                          if (sortOrder === 'desc') {
+                            return bVal > aVal ? 1 : -1;
+                          } else {
+                            return aVal > bVal ? 1 : -1;
+                          }
+                        })
+                        .map(voice => [
+                          voice.influence_rank || '-',
+                          String(voice.original_text).substring(0, 150) + (voice.original_text.length > 150 ? '...' : ''),
+                          voice.sentiment || 'neutral',
+                          ((voice.confidence || 0) * 100).toFixed(1) + '%',
+                          (voice.exposure_score || 0).toLocaleString(),
+                          voice.profile_tag || 'UNTAGGED',
+                          Array.isArray(voice.topics) ? voice.topics.join(', ') : (voice.topics || 'General'),
+                          voice.counter_statement || (voice.sentiment === 'negative' ? 'No counter-statement generated' : 'N/A (non-negative)'),
+                          voice.author_url || '-',
+                          voice.content_url || '-'
+                        ])}
+                      columns={[
+                        'Rank', 'Content', 'Sentiment', 'Confidence', 'Exposure Score',
+                        'Profile Type', 'Topics', 'Counter Statement', 'Author URL', 'Content URL'
+                      ]}
+                      title={`Influential Voices (${influentialVoices.priority_voices.filter(voice => {
+                        if (filterSentiment === 'all') return true;
+                        return voice.sentiment === filterSentiment;
+                      }).length} shown)`}
+                    />
+                  )}
+
+                  {/* Configuration Summary */}
+                  <div style={{marginTop: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e5e7eb'}}>
+                    <h4 style={{color: '#374151', marginBottom: '0.5rem'}}>Analysis Configuration</h4>
+                    <div style={{fontSize: '0.875rem', color: '#6b7280'}}>
+                      <strong>Method:</strong> {influentialVoices.analysis_config?.use_threshold ? 'Exposure Threshold' : 'Top Count'} |
+                      <strong> Threshold:</strong> {influentialVoices.analysis_config?.exposure_threshold?.toLocaleString() || 'N/A'} |
+                      <strong> Text Column:</strong> {influentialVoices.analysis_config?.text_column || 'Auto-detected'} |
+                      <strong> Detected Columns:</strong> {Object.keys(influentialVoices.analysis_config?.detected_columns || {}).length} Cyabra columns found
+                    </div>
+                  </div>
+                </Card>
+              )}
+            </div>
           )}
 
           {/* User Management */}

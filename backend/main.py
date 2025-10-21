@@ -18,6 +18,7 @@ from pptx.util import Inches
 import io
 import tempfile
 import uuid
+from database import db
 
 # Load environment variables
 load_dotenv()
@@ -72,12 +73,183 @@ sessions = {}
 
 class SentimentRequest(BaseModel):
     session_id: str
+    text_column_override: Optional[str] = None
 
 class CommentRequest(BaseModel):
     session_id: str
+    text_column_override: Optional[str] = None
 
 class ReportRequest(BaseModel):
     session_id: str
+    text_column_override: Optional[str] = None
+
+class InfluentialAnalysisRequest(BaseModel):
+    session_id: str
+    text_column_override: Optional[str] = None
+    exposure_threshold: Optional[float] = 500000.0  # 500K default threshold
+    top_count: Optional[int] = 5  # Top 5 default
+    use_threshold: Optional[bool] = True  # Use threshold vs top count
+
+class SaveAnalysisRequest(BaseModel):
+    session_id: str
+    document_id: str
+    analysis_name: str
+    analysis_type: str
+    analysis_data: dict
+
+def detect_cyabra_columns(data):
+    """
+    Detect Cyabra-style export columns including max_exp, tag, author_url, content_url
+    """
+    if not data or len(data) == 0:
+        return {}
+    
+    df_temp = pd.DataFrame(data)
+    detected_columns = {}
+    
+    # Look for exposure/reach columns (max_exp or similar)
+    exposure_patterns = [r'.*max_exp.*', r'.*exposure.*', r'.*reach.*', r'.*views.*', r'.*impressions.*']
+    for col in df_temp.columns:
+        col_lower = col.lower()
+        for pattern in exposure_patterns:
+            if re.match(pattern, col_lower):
+                detected_columns['exposure_column'] = col
+                break
+        if 'exposure_column' in detected_columns:
+            break
+    
+    # Look for tag/profile type columns
+    tag_patterns = [r'.*tag.*', r'.*profile.*type.*', r'.*account.*type.*', r'.*user.*type.*']
+    for col in df_temp.columns:
+        col_lower = col.lower()
+        for pattern in tag_patterns:
+            if re.match(pattern, col_lower):
+                detected_columns['tag_column'] = col
+                break
+        if 'tag_column' in detected_columns:
+            break
+    
+    # Look for author URL columns
+    author_url_patterns = [r'.*author.*url.*', r'.*profile.*url.*', r'.*user.*url.*', r'.*account.*url.*']
+    for col in df_temp.columns:
+        col_lower = col.lower()
+        for pattern in author_url_patterns:
+            if re.match(pattern, col_lower):
+                detected_columns['author_url_column'] = col
+                break
+        if 'author_url_column' in detected_columns:
+            break
+    
+    # Look for content URL columns
+    content_url_patterns = [r'.*content.*url.*', r'.*post.*url.*', r'.*link.*', r'.*url.*']
+    for col in df_temp.columns:
+        col_lower = col.lower()
+        for pattern in content_url_patterns:
+            if re.match(pattern, col_lower):
+                detected_columns['content_url_column'] = col
+                break
+        if 'content_url_column' in detected_columns:
+            break
+    
+    return detected_columns
+
+def detect_text_column(data):
+    """
+    Intelligently detect the most likely text column for sentiment analysis.
+    Uses multiple heuristics to find the best text column.
+    """
+    if not data or len(data) == 0:
+        return None
+    
+    df_temp = pd.DataFrame(data)
+    column_scores = {}
+    
+    # Define common text column name patterns
+    text_patterns = [
+        # Common text column names
+        r'.*text.*', r'.*content.*', r'.*message.*', r'.*comment.*', r'.*post.*',
+        r'.*description.*', r'.*body.*', r'.*tweet.*', r'.*status.*', r'.*review.*',
+        r'.*feedback.*', r'.*opinion.*', r'.*remarks.*', r'.*note.*', r'.*detail.*',
+        # Social media specific
+        r'.*caption.*', r'.*thread.*', r'.*reply.*', r'.*mention.*',
+        # Document specific
+        r'.*summary.*', r'.*abstract.*', r'.*excerpt.*', r'.*paragraph.*'
+    ]
+    
+    # Check each column
+    for col in df_temp.columns:
+        if df_temp[col].dtype == 'object':
+            score = 0
+            
+            # Convert to string and handle NaN values
+            text_series = df_temp[col].astype(str)
+            valid_texts = text_series[~text_series.isin(['', 'nan', 'None', 'NULL'])]
+            
+            if len(valid_texts) == 0:
+                continue
+            
+            # Score 1: Column name patterns (high weight)
+            col_lower = col.lower()
+            for pattern in text_patterns:
+                if re.match(pattern, col_lower):
+                    score += 50
+                    break
+            
+            # Score 2: Average text length (higher is better for meaningful text)
+            avg_length = valid_texts.str.len().mean()
+            if avg_length > 20:  # Meaningful text usually > 20 chars
+                score += min(avg_length / 10, 30)  # Cap at 30 points
+            elif avg_length < 5:  # Probably not text content
+                score -= 20
+            
+            # Score 3: Text diversity (more unique values = better)
+            unique_ratio = len(valid_texts.unique()) / len(valid_texts)
+            if unique_ratio > 0.7:  # High diversity
+                score += 20
+            elif unique_ratio < 0.1:  # Low diversity (probably IDs or categories)
+                score -= 15
+            
+            # Score 4: Contains common text words/patterns
+            sample_text = ' '.join(valid_texts.head(100).str.lower())
+            text_indicators = ['the', 'and', 'is', 'to', 'of', 'in', 'it', 'you', 'that', 'he', 'was', 'for', 'on', 'are', 'as', 'with', 'his', 'they', 'i', 'at', 'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by', 'word', 'but', 'not', 'what', 'all', 'were', 'we', 'when', 'your', 'can', 'said', 'there', 'each', 'which', 'she', 'do', 'how', 'their', 'if', 'will', 'up', 'other', 'about', 'out', 'many', 'then', 'them', 'these', 'so', 'some', 'her', 'would', 'make', 'like', 'into', 'him', 'has', 'two', 'more', 'very', 'what', 'know', 'just', 'first', 'get', 'over', 'think', 'also', 'its', 'back', 'after', 'use', 'good', 'our', 'way', 'even', 'new', 'want', 'because', 'any', 'give', 'day', 'us', 'most', 'people']
+            word_count = sum(1 for word in text_indicators if word in sample_text)
+            score += min(word_count, 25)  # Cap at 25 points
+            
+            # Score 5: Contains punctuation (typical of real text)
+            punct_ratio = sum(1 for char in sample_text if char in '.,!?;:') / max(len(sample_text), 1)
+            if punct_ratio > 0.01:  # Has decent punctuation
+                score += 10
+            
+            # Score 6: Number of sentences (more sentences = more likely to be text)
+            sentence_count = sample_text.count('.') + sample_text.count('!') + sample_text.count('?')
+            if sentence_count > len(valid_texts.head(100)) * 0.3:  # Good sentence density
+                score += 15
+            
+            # Penalty for likely non-text columns
+            if col_lower in ['id', 'index', 'number', 'count', 'date', 'time', 'url', 'link', 'email', 'phone', 'address']:
+                score -= 30
+            
+            # Penalty for columns that look like IDs or numbers
+            if valid_texts.str.match(r'^\d+$').sum() > len(valid_texts) * 0.8:  # Mostly numbers
+                score -= 25
+            
+            if valid_texts.str.len().max() < 10:  # Very short content
+                score -= 15
+                
+            column_scores[col] = score
+            print(f"Column '{col}': score={score:.1f}, avg_length={avg_length:.1f}, unique_ratio={unique_ratio:.2f}")
+    
+    if not column_scores:
+        # Fallback: return first object column
+        for col in df_temp.columns:
+            if df_temp[col].dtype == 'object':
+                return col
+        return df_temp.columns[0] if len(df_temp.columns) > 0 else None
+    
+    # Return column with highest score
+    best_column = max(column_scores.items(), key=lambda x: x[1])
+    print(f"Selected text column: '{best_column[0]}' with score {best_column[1]:.1f}")
+    return best_column[0]
 
 class SessionData:
     def __init__(self):
@@ -85,6 +257,7 @@ class SessionData:
         self.sentiments = None
         self.comments = None
         self.filename = None
+        self.detected_text_column = None
 
 async def call_llm_api(text: str, prompt_type: str) -> Dict:
     """Call the LLM API for sentiment analysis, topic categorization, or comment generation"""
@@ -213,52 +386,228 @@ Response:"""
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    """Upload and process CSV/XLSX file"""
+    """Upload and process CSV/XLSX file - simplified for debugging"""
+    print(f"=== UPLOAD START === File: {file.filename}")
+    
+    # Validate file type
     if not file.filename.endswith(('.csv', '.xlsx')):
+        print(f"Invalid file type: {file.filename}")
         raise HTTPException(status_code=400, detail="Only CSV and XLSX files are supported")
     
     session_id = str(uuid.uuid4())
+    print(f"Generated session ID: {session_id}")
     
     try:
+        print("Step 1: Reading file contents...")
         contents = await file.read()
+        file_size = len(contents)
+        print(f"File size: {file_size} bytes ({file_size/1024/1024:.2f} MB)")
         
+        # Handle large files with chunked processing
+        if file_size > 100 * 1024 * 1024:  # 100MB limit
+            print(f"Very large file detected: {file_size} bytes - will use chunked processing")
+        elif file_size > 50 * 1024 * 1024:  # 50MB limit
+            print(f"Large file detected: {file_size} bytes - will use chunked processing")
+        
+        print("Step 2: Attempting to read with pandas...")
+        
+        # Adaptive reading based on file size
         if file.filename.endswith('.csv'):
-            df = pd.read_csv(io.BytesIO(contents))
+            print("Reading CSV file...")
+            try:
+                if file_size > 50 * 1024 * 1024:  # > 50MB, use chunked reading
+                    print("Large file - using chunked reading...")
+                    chunks = []
+                    chunk_size = 10000  # Read 10000 rows at a time
+                    max_chunks = None   # No limit - read all chunks
+                    
+                    # Robust CSV reading parameters for malformed files
+                    csv_params = {
+                        'chunksize': chunk_size,
+                        'on_bad_lines': 'skip',  # Skip malformed lines
+                        'engine': 'c',          # Use C engine which supports low_memory
+                        'sep': ',',             # Explicit separator
+                        'quotechar': '"',       # Standard quote character
+                        'skipinitialspace': True,
+                        'low_memory': False     # Read entire file into memory for consistency
+                    }
+                    
+                    try:
+                        print("Attempting robust CSV parsing with error handling...")
+                        csv_params['encoding'] = 'utf-8'
+                        chunk_iterator = pd.read_csv(io.BytesIO(contents), **csv_params)
+                        for i, chunk in enumerate(chunk_iterator):
+                            if len(chunk) > 0:  # Only add non-empty chunks
+                                chunks.append(chunk)
+                                print(f"Read chunk {i+1}: {len(chunk)} rows")
+                            # Continue reading all chunks - no artificial limit
+                        
+                        if chunks:
+                            df = pd.concat(chunks, ignore_index=True)
+                            print(f"CSV read successful with chunking: {len(df)} total rows")
+                        else:
+                            print("No valid chunks found, trying alternative approach...")
+                            raise Exception("No valid data chunks found")
+                            
+                    except (UnicodeDecodeError, Exception) as e:
+                        print(f"UTF-8 chunked reading failed: {e}")
+                        print("Trying latin-1 with chunking...")
+                        chunks = []
+                        try:
+                            csv_params_latin = csv_params.copy()
+                            csv_params_latin['encoding'] = 'latin-1'
+                            csv_params_latin['engine'] = 'python'  # Fallback to python engine
+                            csv_params_latin.pop('low_memory', None)  # Remove low_memory for python engine
+                            chunk_iterator = pd.read_csv(io.BytesIO(contents), **csv_params_latin)
+                            for i, chunk in enumerate(chunk_iterator):
+                                if len(chunk) > 0:
+                                    chunks.append(chunk)
+                                # Continue reading all chunks - no artificial limit
+                            
+                            if chunks:
+                                df = pd.concat(chunks, ignore_index=True)
+                                print(f"CSV read successful with latin-1 chunking: {len(df)} total rows")
+                            else:
+                                raise Exception("No valid data found with latin-1 encoding")
+                                
+                        except Exception as e2:
+                            print(f"Chunked reading failed completely: {e2}")
+                            print("Attempting single-pass read with robust parameters...")
+                            # Last resort: try to read the whole file with very robust settings
+                            try:
+                                # Try with C engine first (more robust for malformed CSVs)
+                                df = pd.read_csv(
+                                    io.BytesIO(contents),
+                                    encoding='utf-8',
+                                    on_bad_lines='skip',
+                                    engine='c',
+                                    sep=',',
+                                    quotechar='"',
+                                    skipinitialspace=True,
+                                    # No row limit - read all data
+                                    low_memory=False
+                                )
+                                print(f"Single-pass C engine read successful: {len(df)} rows")
+                            except Exception as e3:
+                                print(f"C engine failed: {e3}, trying python engine...")
+                                # Fallback to python engine without low_memory
+                                df = pd.read_csv(
+                                    io.BytesIO(contents),
+                                    encoding='latin-1',
+                                    on_bad_lines='skip',
+                                    engine='python',
+                                    sep=',',
+                                    quotechar='"',
+                                    skipinitialspace=True,
+                                    # No row limit - read all data
+                                )
+                                print(f"Single-pass python engine read successful: {len(df)} rows")
+                else:
+                    # Standard reading for smaller files with robust error handling
+                    print("Standard file size - using robust single-pass reading...")
+                    
+                    csv_params = {
+                        'on_bad_lines': 'skip',
+                        'engine': 'c',         # Use C engine which supports low_memory
+                        'sep': ',',
+                        'quotechar': '"',
+                        'skipinitialspace': True,
+                        'low_memory': False
+                    }
+                    
+                    try:
+                        df = pd.read_csv(io.BytesIO(contents), encoding='utf-8', **csv_params)
+                        print(f"CSV read successful with UTF-8: {len(df)} rows")
+                    except (UnicodeDecodeError, Exception) as e:
+                        print(f"UTF-8 failed: {e}, trying latin-1...")
+                        try:
+                            csv_params_latin = csv_params.copy()
+                            csv_params_latin['encoding'] = 'latin-1'
+                            df = pd.read_csv(io.BytesIO(contents), **csv_params_latin)
+                            print(f"CSV read successful with latin-1: {len(df)} rows")
+                        except Exception as e2:
+                            print(f"Standard parsing failed: {e2}, trying python engine fallback...")
+                            # Very basic fallback with python engine - read first 50k for safety
+                            df = pd.read_csv(
+                                io.BytesIO(contents),
+                                encoding='utf-8',
+                                nrows=50000,  # Reasonable fallback limit
+                                on_bad_lines='skip',
+                                engine='python'
+                            )
+                            print(f"Fallback read successful: {len(df)} rows")
+            except Exception as e:
+                print(f"CSV reading failed: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                raise HTTPException(status_code=400, detail=f"CSV read error: {str(e)}")
         else:
-            df = pd.read_excel(io.BytesIO(contents))
+            print("Reading Excel file...")
+            try:
+                # For Excel, read all rows
+                df = pd.read_excel(io.BytesIO(contents))
+                print(f"Excel read successful: {len(df)} rows")
+            except Exception as e:
+                print(f"Excel reading failed: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                raise HTTPException(status_code=400, detail=f"Excel read error: {str(e)}")
         
-        # Comprehensive NaN cleaning
-        # Replace NaN with appropriate values based on column type
-        for col in df.columns:
-            if df[col].dtype in ['float64', 'float32', 'int64', 'int32']:
-                df[col] = df[col].fillna(0)  # Numeric columns get 0
-            else:
-                df[col] = df[col].fillna('')  # Text columns get empty string
+        print(f"Step 3: File parsed successfully - {len(df)} rows, {len(df.columns)} columns")
+        print(f"Columns: {list(df.columns)}")
         
-        # Convert to serializable format and do additional cleaning
-        data = df.to_dict('records')
+        # Basic NaN cleaning - simple approach
+        print("Step 4: Basic NaN cleaning...")
+        df = df.fillna('')  # Replace all NaN with empty string
         
-        # Final safety check - clean any remaining NaN values
-        data = deep_clean_nan_values(data)
+        print("Step 5: Converting to dict...")
+        # Convert data efficiently - process all rows
+        try:
+            # Process all data without sampling
+            test_data = df.to_dict('records')
+            print(f"Converted all {len(test_data)} rows to dict format")
+        except Exception as e:
+            print(f"Dict conversion failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"Data conversion error: {str(e)}")
         
-        print(f"Processed {len(data)} rows, columns: {list(df.columns)}")
+        print("Step 6: Creating session data...")
         
         # Store in session
         session_data = SessionData()
-        session_data.data = data
+        session_data.data = test_data
         session_data.filename = file.filename
+        session_data.detected_text_column = detect_text_column(test_data)
         sessions[session_id] = session_data
         
-        return {
+        print("Step 7: Preparing response...")
+        response_data = {
             "session_id": session_id,
             "filename": file.filename,
-            "row_count": len(data),
+            "row_count": len(test_data),
             "columns": list(df.columns),
-            "preview": data[:5]  # First 5 rows as preview
+            "detected_text_column": session_data.detected_text_column,
+            "preview": test_data[:5]  # First 5 rows as preview
         }
+        
+        print(f"=== UPLOAD SUCCESS === Session: {session_id}, Rows: {len(test_data)}")
+        return response_data
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+        print(f"Error processing file: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        # Provide more specific error messages
+        if "encoding" in str(e).lower():
+            raise HTTPException(status_code=400, detail=f"File encoding error. Please save your file as UTF-8 encoded CSV or standard Excel format.")
+        elif "memory" in str(e).lower() or "size" in str(e).lower():
+            raise HTTPException(status_code=413, detail=f"File too large to process. Please reduce file size or split into smaller files.")
+        elif "pandas" in str(e).lower() or "read_csv" in str(e).lower() or "read_excel" in str(e).lower():
+            raise HTTPException(status_code=400, detail=f"File format error. Please ensure your file is a valid CSV or Excel file.")
+        else:
+            raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 @app.get("/data/{session_id}")
 async def get_data(session_id: str):
@@ -283,22 +632,13 @@ async def analyze_sentiment(request: SentimentRequest):
     session_data = sessions[request.session_id]
     data = session_data.data
     
-    # Determine text column (assume first text column or look for common names)
-    text_column = None
-    df_temp = pd.DataFrame(data)
-    for col in df_temp.columns:
-        if df_temp[col].dtype == 'object':
-            # Convert to string and handle NaN values
-            text_series = df_temp[col].astype(str)
-            # Filter out empty strings and 'nan' strings
-            valid_texts = text_series[~text_series.isin(['', 'nan', 'None'])]
-            if len(valid_texts) > 0 and valid_texts.str.len().mean() > 10:
-                text_column = col
-                break
-    
-    if not text_column:
-        # Use first column as fallback
-        text_column = df_temp.columns[0]
+    # Use override if provided, otherwise use intelligent detection
+    if request.text_column_override:
+        text_column = request.text_column_override
+        print(f"Using user-specified text column: {text_column}")
+    else:
+        text_column = detect_text_column(data)
+        print(f"Using auto-detected text column: {text_column}")
     
     async def analyze_row(row):
         text = str(row.get(text_column, ""))
@@ -342,10 +682,81 @@ async def analyze_sentiment(request: SentimentRequest):
     tasks = [analyze_with_semaphore(row) for row in data]
     sentiments = await asyncio.gather(*tasks)
     
-    # Combine data with sentiments
+    # Always check for max_exp column directly first
+    available_columns = list(data[0].keys()) if data else []
+    print(f"Available columns in data: {available_columns}")
+    
+    # Detect Cyabra-style columns for exposure scores
+    cyabra_columns = detect_cyabra_columns(data)
+    exposure_column = cyabra_columns.get('exposure_column')
+    tag_column = cyabra_columns.get('tag_column')
+    author_url_column = cyabra_columns.get('author_url_column')
+    content_url_column = cyabra_columns.get('content_url_column')
+    
+    # Force use max_exp if it exists (most important for Cyabra data)
+    if 'max_exp' in available_columns:
+        exposure_column = 'max_exp'
+        print(f"Found max_exp column - using it as exposure column")
+    
+    # Fallback to direct column names if not detected
+    if not tag_column and 'tag' in available_columns:
+        tag_column = 'tag'
+    if not author_url_column and 'author_url' in available_columns:
+        author_url_column = 'author_url'
+    if not content_url_column and 'content_url' in available_columns:
+        content_url_column = 'content_url'
+    
+    print(f"Final columns used - Exposure: {exposure_column}, Tag: {tag_column}, Author URL: {author_url_column}, Content URL: {content_url_column}")
+    
+    # Combine data with sentiments and exposure information
     analyzed_data = []
     for i, row in enumerate(data):
         analyzed_row = {**row, **sentiments[i]}
+        
+        # Extract exposure score - prioritize max_exp column
+        exposure_score = 0.0
+        
+        # Try max_exp first
+        if 'max_exp' in row:
+            try:
+                raw_value = row['max_exp']
+                if raw_value is not None and str(raw_value).strip() not in ['', 'nan', 'None']:
+                    if isinstance(raw_value, str):
+                        clean_value = raw_value.replace(',', '').replace(' ', '').strip()
+                        if clean_value:
+                            exposure_score = float(clean_value)
+                    else:
+                        exposure_score = float(raw_value)
+                print(f"Row {i}: max_exp extracted exposure {exposure_score} from raw value: {raw_value}")
+            except (ValueError, TypeError) as e:
+                print(f"Row {i}: Failed to extract max_exp {row.get('max_exp')}: {e}")
+                exposure_score = 0.0
+        
+        # If max_exp failed, try detected exposure column
+        elif exposure_column and exposure_column in row:
+            try:
+                raw_value = row[exposure_column]
+                if raw_value is not None and str(raw_value).strip() not in ['', 'nan', 'None']:
+                    if isinstance(raw_value, str):
+                        clean_value = raw_value.replace(',', '').replace(' ', '').strip()
+                        if clean_value:
+                            exposure_score = float(clean_value)
+                    else:
+                        exposure_score = float(raw_value)
+                print(f"Row {i}: {exposure_column} extracted exposure {exposure_score} from raw value: {raw_value}")
+            except (ValueError, TypeError) as e:
+                print(f"Row {i}: Failed to extract from {exposure_column} {row.get(exposure_column)}: {e}")
+                exposure_score = 0.0
+        
+        # Always include the original max_exp value in the response for debugging
+        if 'max_exp' in row:
+            analyzed_row['max_exp_original'] = row['max_exp']
+        
+        analyzed_row['exposure_score'] = exposure_score
+        analyzed_row['profile_tag'] = str(row.get(tag_column, 'UNTAGGED')).upper() if tag_column and tag_column in row else 'UNTAGGED'
+        analyzed_row['author_url'] = str(row.get(author_url_column, '')) if author_url_column and author_url_column in row else ''
+        analyzed_row['content_url'] = str(row.get(content_url_column, '')) if content_url_column and content_url_column in row else ''
+        
         analyzed_data.append(analyzed_row)
     
     session_data.sentiments = analyzed_data
@@ -376,12 +787,30 @@ async def analyze_sentiment(request: SentimentRequest):
     if not (0.0 <= avg_confidence <= 1.0):
         avg_confidence = 0.5
     
+    # Calculate exposure statistics
+    exposure_scores = [row.get('exposure_score', 0) for row in analyzed_data]
+    exposure_stats = {
+        'max_exposure': max(exposure_scores) if exposure_scores else 0,
+        'min_exposure': min(exposure_scores) if exposure_scores else 0,
+        'avg_exposure': sum(exposure_scores) / len(exposure_scores) if exposure_scores else 0,
+        'total_exposure': sum(exposure_scores)
+    }
+    
+    # Profile distribution
+    profile_distribution = {}
+    for row in analyzed_data:
+        tag = row.get('profile_tag', 'UNTAGGED')
+        profile_distribution[tag] = profile_distribution.get(tag, 0) + 1
+    
     # Use safe JSON response
     return safe_json_response({
         "analyzed_data": analyzed_data,
         "statistics": sentiment_counts,
         "topic_statistics": topic_counts,
         "average_confidence": avg_confidence,
+        "exposure_statistics": exposure_stats,
+        "profile_distribution": profile_distribution,
+        "cyabra_columns_detected": cyabra_columns,
         "text_column": text_column
     })
 
@@ -399,19 +828,13 @@ async def analyze_streaming(request: SentimentRequest):
     
     print(f"Starting streaming analysis for {len(data)} rows")
     
-    # Determine text column
-    text_column = None
-    df_temp = pd.DataFrame(data)
-    for col in df_temp.columns:
-        if df_temp[col].dtype == 'object':
-            text_series = df_temp[col].astype(str)
-            valid_texts = text_series[~text_series.isin(['', 'nan', 'None'])]
-            if len(valid_texts) > 0 and valid_texts.str.len().mean() > 10:
-                text_column = col
-                break
-    
-    if not text_column:
-        text_column = df_temp.columns[0]
+    # Use override if provided, otherwise use intelligent detection
+    if request.text_column_override:
+        text_column = request.text_column_override
+        print(f"Using user-specified text column: {text_column}")
+    else:
+        text_column = detect_text_column(data)
+        print(f"Using auto-detected text column: {text_column}")
     
     async def analyze_stream():
         analyzed_data = []
@@ -462,12 +885,50 @@ async def analyze_streaming(request: SentimentRequest):
                 topic_counts[topic] = topic_counts.get(topic, 0) + 1
                 total_confidence += confidence
                 
-                # Create analyzed row
+                # Extract exposure score for streaming analysis
+                exposure_score = 0.0
+                if 'max_exp' in row:
+                    try:
+                        raw_value = row['max_exp']
+                        if raw_value is not None and str(raw_value).strip() not in ['', 'nan', 'None']:
+                            if isinstance(raw_value, str):
+                                clean_value = raw_value.replace(',', '').replace(' ', '').strip()
+                                if clean_value:
+                                    exposure_score = float(clean_value)
+                            else:
+                                exposure_score = float(raw_value)
+                        print(f"Streaming Row {i}: max_exp extracted exposure {exposure_score} from raw value: {raw_value}")
+                    except (ValueError, TypeError) as e:
+                        print(f"Streaming Row {i}: Failed to extract max_exp {row.get('max_exp')}: {e}")
+                        exposure_score = 0.0
+                
+                # Extract exposure score for streaming analysis
+                exposure_score = 0.0
+                if 'max_exp' in row:
+                    try:
+                        raw_value = row['max_exp']
+                        if raw_value is not None and str(raw_value).strip() not in ['', 'nan', 'None']:
+                            if isinstance(raw_value, str):
+                                clean_value = raw_value.replace(',', '').replace(' ', '').strip()
+                                if clean_value:
+                                    exposure_score = float(clean_value)
+                            else:
+                                exposure_score = float(raw_value)
+                        print(f"Streaming Row {i}: max_exp extracted exposure {exposure_score} from raw value: {raw_value}")
+                    except (ValueError, TypeError) as e:
+                        print(f"Streaming Row {i}: Failed to extract max_exp {row.get('max_exp')}: {e}")
+                        exposure_score = 0.0
+                
+                # Create analyzed row with all original data plus analysis results
                 analyzed_row = {
-                    **row,
+                    **row,  # Keep all original columns including max_exp
                     "sentiment": sentiment,
                     "confidence": confidence,
-                    "topic": topic.strip() if topic else "General"
+                    "topic": topic.strip() if topic else "General",
+                    "exposure_score": exposure_score,
+                    "profile_tag": str(row.get('tag', 'UNTAGGED')).upper(),
+                    "author_url": str(row.get('author_url', '')),
+                    "content_url": str(row.get('content_url', ''))
                 }
                 analyzed_data.append(analyzed_row)
                 
@@ -490,11 +951,26 @@ async def analyze_streaming(request: SentimentRequest):
         if not (0.0 <= avg_confidence <= 1.0):
             avg_confidence = 0.5
         
+        # Calculate exposure statistics for streaming
+        exposure_scores = [row.get('exposure_score', 0) for row in analyzed_data]
+        exposure_stats = {
+            'max_exposure': max(exposure_scores) if exposure_scores else 0,
+            'min_exposure': min(exposure_scores) if exposure_scores else 0,
+            'avg_exposure': sum(exposure_scores) / len(exposure_scores) if exposure_scores else 0,
+            'total_exposure': sum(exposure_scores)
+        }
+        
+        # Profile distribution for streaming
+        profile_distribution = {}
+        for row in analyzed_data:
+            tag = row.get('profile_tag', 'UNTAGGED')
+            profile_distribution[tag] = profile_distribution.get(tag, 0) + 1
+        
         # Store results
         session_data.sentiments = analyzed_data
         
-        # Send completion event
-        yield f"data: {json.dumps({'type': 'complete_all', 'analyzed_data': analyzed_data, 'statistics': sentiment_counts, 'topic_statistics': topic_counts, 'average_confidence': avg_confidence, 'text_column': text_column})}\n\n"
+        # Send completion event with exposure statistics
+        yield f"data: {json.dumps({'type': 'complete_all', 'analyzed_data': analyzed_data, 'statistics': sentiment_counts, 'topic_statistics': topic_counts, 'average_confidence': avg_confidence, 'exposure_statistics': exposure_stats, 'profile_distribution': profile_distribution, 'text_column': text_column})}\n\n"
     
     return StreamingResponse(
         analyze_stream(),
@@ -519,17 +995,18 @@ async def generate_comments(request: CommentRequest):
     if not analyzed_data:
         raise HTTPException(status_code=400, detail="No analyzed data found")
     
-    # Determine text column
-    df_temp = pd.DataFrame(analyzed_data)
-    text_column = None
-    for col in df_temp.columns:
-        if col not in ["sentiment", "confidence", "topic"] and df_temp[col].dtype == 'object':
-            # Convert to string and check for valid text content
-            text_series = df_temp[col].astype(str)
-            valid_texts = text_series[~text_series.isin(['', 'nan', 'None'])]
-            if len(valid_texts) > 0:
-                text_column = col
-                break
+    # Use override if provided, otherwise use intelligent detection
+    if request.text_column_override:
+        text_column = request.text_column_override
+        print(f"Using user-specified text column: {text_column}")
+    else:
+        # Intelligent text column detection (excluding analysis result columns)
+        filtered_data = []
+        for row in analyzed_data:
+            filtered_row = {k: v for k, v in row.items() if k not in ["sentiment", "confidence", "topic"]}
+            filtered_data.append(filtered_row)
+        text_column = detect_text_column(filtered_data)
+        print(f"Using auto-detected text column: {text_column}")
     
     async def generate_comment(row):
         text = str(row.get(text_column, ""))
@@ -941,16 +1418,18 @@ async def mitigate_streaming(request: CommentRequest):
     
     print(f"Starting streaming comment generation for {len(analyzed_data)} rows")
     
-    # Determine text column
-    df_temp = pd.DataFrame(analyzed_data)
-    text_column = None
-    for col in df_temp.columns:
-        if col not in ["sentiment", "confidence", "topic"] and df_temp[col].dtype == 'object':
-            text_series = df_temp[col].astype(str)
-            valid_texts = text_series[~text_series.isin(['', 'nan', 'None'])]
-            if len(valid_texts) > 0:
-                text_column = col
-                break
+    # Use override if provided, otherwise use intelligent detection
+    if request.text_column_override:
+        text_column = request.text_column_override
+        print(f"Using user-specified text column: {text_column}")
+    else:
+        # Intelligent text column detection (excluding analysis result columns)
+        filtered_data = []
+        for row in analyzed_data:
+            filtered_row = {k: v for k, v in row.items() if k not in ["sentiment", "confidence", "topic"]}
+            filtered_data.append(filtered_row)
+        text_column = detect_text_column(filtered_data)
+        print(f"Using auto-detected text column: {text_column}")
     
     async def generate_stream():
         final_data = []
@@ -1011,9 +1490,320 @@ async def mitigate_streaming(request: CommentRequest):
         }
     )
 
+@app.post("/analyze-influential")
+async def analyze_influential_voices(request: InfluentialAnalysisRequest):
+    """Analyze influential voices based on exposure score and sentiment"""
+    if request.session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session_data = sessions[request.session_id]
+    analyzed_data = session_data.sentiments
+    
+    if not analyzed_data:
+        raise HTTPException(status_code=400, detail="No analyzed data found. Run sentiment analysis first.")
+    
+    # Detect Cyabra-style columns
+    cyabra_columns = detect_cyabra_columns(analyzed_data)
+    exposure_column = cyabra_columns.get('exposure_column')
+    tag_column = cyabra_columns.get('tag_column')
+    author_url_column = cyabra_columns.get('author_url_column')
+    content_url_column = cyabra_columns.get('content_url_column')
+    
+    print(f"Detected Cyabra columns: {cyabra_columns}")
+    
+    # Use override if provided, otherwise use intelligent detection
+    if request.text_column_override:
+        text_column = request.text_column_override
+        print(f"Using user-specified text column: {text_column}")
+    else:
+        # Intelligent text column detection (excluding analysis result columns)
+        filtered_data = []
+        for row in analyzed_data:
+            filtered_row = {k: v for k, v in row.items() if k not in ["sentiment", "confidence", "topic"]}
+            filtered_data.append(filtered_row)
+        text_column = detect_text_column(filtered_data)
+        print(f"Using auto-detected text column: {text_column}")
+    
+    # Extract influential voices
+    influential_voices = []
+    for idx, row in enumerate(analyzed_data):
+        text = str(row.get(text_column, ""))
+        sentiment = row.get("sentiment", "neutral")
+        confidence = row.get("confidence", 0.5)
+        topics = row.get("topic", "General")
+        
+        # Extract exposure score - check analyzed data first since it may already have exposure_score
+        exposure_score = 0.0
+        
+        # First check if exposure_score is already in the analyzed data
+        if 'exposure_score' in row:
+            try:
+                exposure_score = float(row['exposure_score'])
+                print(f"Influential analysis - Row {idx}: Using existing exposure_score {exposure_score}")
+            except (ValueError, TypeError):
+                exposure_score = 0.0
+        
+        # If not found or zero, try to extract from original columns
+        if exposure_score == 0.0:
+            if exposure_column and exposure_column in row:
+                try:
+                    exposure_raw = row[exposure_column]
+                    if exposure_raw is not None and str(exposure_raw).strip() != '':
+                        if isinstance(exposure_raw, str):
+                            clean_value = exposure_raw.replace(',', '').replace(' ', '')
+                            exposure_score = float(clean_value)
+                        else:
+                            exposure_score = float(exposure_raw)
+                    print(f"Influential analysis - Row {idx}: Extracted exposure {exposure_score} from column {exposure_column}")
+                except (ValueError, TypeError) as e:
+                    print(f"Influential analysis - Row {idx}: Failed to extract exposure from {exposure_column}: {e}")
+                    exposure_score = 0.0
+            
+            # Fallback to direct max_exp column access
+            if exposure_score == 0.0 and 'max_exp' in row:
+                try:
+                    raw_value = row['max_exp']
+                    if raw_value is not None and str(raw_value).strip() != '':
+                        if isinstance(raw_value, str):
+                            clean_value = raw_value.replace(',', '').replace(' ', '')
+                            exposure_score = float(clean_value)
+                        else:
+                            exposure_score = float(raw_value)
+                    print(f"Influential analysis - Row {idx}: Fallback extracted exposure {exposure_score} from max_exp")
+                except (ValueError, TypeError) as e:
+                    print(f"Influential analysis - Row {idx}: Fallback failed to extract exposure: {e}")
+                    exposure_score = 0.0
+        
+        # Extract profile tag
+        profile_tag = "UNTAGGED"
+        if 'profile_tag' in row:
+            profile_tag = str(row.get('profile_tag', 'UNTAGGED')).upper()
+        elif tag_column and tag_column in row:
+            profile_tag = str(row.get(tag_column, "UNTAGGED")).upper()
+        elif 'tag' in row:
+            profile_tag = str(row.get('tag', 'UNTAGGED')).upper()
+        
+        # Extract URLs with fallback to direct column access
+        author_url = ""
+        content_url = ""
+        
+        if 'author_url' in row:
+            author_url = str(row.get('author_url', ''))
+        elif author_url_column and author_url_column in row:
+            author_url = str(row.get(author_url_column, ''))
+        
+        if 'content_url' in row:
+            content_url = str(row.get('content_url', ''))
+        elif content_url_column and content_url_column in row:
+            content_url = str(row.get(content_url_column, ''))
+        
+        # Only process negative sentiment posts for counter-statements
+        should_generate_counter = sentiment == "negative"
+        
+        influential_voices.append({
+            'row_index': idx,
+            'original_text': text,
+            'sentiment': sentiment,
+            'confidence': confidence,
+            'topics': topics.split(',') if isinstance(topics, str) else [topics] if topics else ["General"],
+            'exposure_score': exposure_score,
+            'profile_tag': profile_tag,
+            'author_url': author_url,
+            'content_url': content_url,
+            'should_generate_counter': should_generate_counter
+        })
+    
+    # Sort by exposure score descending
+    influential_voices.sort(key=lambda x: x['exposure_score'], reverse=True)
+    
+    # Filter based on threshold or top count
+    priority_voices = []
+    if request.use_threshold:
+        # Use exposure threshold
+        priority_voices = [v for v in influential_voices if v['exposure_score'] >= request.exposure_threshold]
+        print(f"Found {len(priority_voices)} voices above {request.exposure_threshold} exposure threshold")
+    else:
+        # Use top count
+        priority_voices = influential_voices[:request.top_count]
+        print(f"Selected top {len(priority_voices)} voices by exposure")
+    
+    # Filter to only negative sentiment for counter-statement generation
+    negative_priority_voices = [v for v in priority_voices if v['sentiment'] == 'negative']
+    
+    # Add influence ranking
+    for rank, voice in enumerate(priority_voices):
+        voice['influence_rank'] = rank + 1
+        voice['is_priority'] = True
+    
+    # Generate counter-statements for high-influence negative voices
+    async def generate_counter_statement(voice_data):
+        if not voice_data['should_generate_counter']:
+            return ""
+        
+        # Enhanced prompt for influential voice counter-statements
+        text = voice_data['original_text']
+        profile_type = voice_data['profile_tag']
+        exposure = voice_data['exposure_score']
+        
+        prompt = f"""Generate a strategic counter-statement for this influential negative post with {exposure:.0f} exposure score from a {profile_type} profile.
+
+Original post: {text}
+
+Instructions for counter-statement:
+- Address the concerns raised without being defensive
+- Provide factual, constructive information
+- Match the communication style appropriate for the audience
+- Keep the tone professional but approachable
+- Focus on solutions and positive outcomes
+- {"Be diplomatic as this is from a real person" if profile_type == "REAL_PROFILE" else "Address systematically as this may be from an automated account" if profile_type == "FAKE_PROFILE" else "Provide institutional-level response as this is from an organization"}
+
+Strategic counter-statement:"""
+        
+        # Call LLM with enhanced prompt
+        payload = {
+            "model": os.getenv("LLM_MODEL_NAME"),
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 300,
+            "temperature": 0.3,
+            "stream": False
+        }
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{os.getenv('LLM_API_URL')}/chat/completions",
+                                       json=payload,
+                                       headers={"Content-Type": "application/json"}) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return result["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            print(f"Error generating counter-statement: {e}")
+            return "Counter-statement generation failed"
+        
+        return "No counter-statement generated"
+    
+    # Generate counter-statements for negative priority voices
+    counter_tasks = []
+    for voice in negative_priority_voices:
+        counter_tasks.append(generate_counter_statement(voice))
+    
+    if counter_tasks:
+        counter_statements = await asyncio.gather(*counter_tasks)
+        for i, voice in enumerate(negative_priority_voices):
+            voice['counter_statement'] = counter_statements[i]
+    
+    # Store results in database
+    try:
+        db.store_influential_voices(request.session_id, priority_voices)
+        print(f"Stored {len(priority_voices)} influential voices in database")
+    except Exception as e:
+        print(f"Error storing influential voices: {e}")
+    
+    # Calculate statistics
+    stats = {
+        'total_voices': len(influential_voices),
+        'priority_voices': len(priority_voices),
+        'negative_priority_voices': len(negative_priority_voices),
+        'threshold_used': request.exposure_threshold if request.use_threshold else f"Top {request.top_count}",
+        'cyabra_columns_detected': cyabra_columns,
+        'profile_distribution': {},
+        'exposure_stats': {
+            'max_exposure': max([v['exposure_score'] for v in influential_voices]) if influential_voices else 0,
+            'min_exposure': min([v['exposure_score'] for v in influential_voices]) if influential_voices else 0,
+            'avg_exposure': sum([v['exposure_score'] for v in influential_voices]) / len(influential_voices) if influential_voices else 0
+        }
+    }
+    
+    # Profile distribution stats
+    for voice in priority_voices:
+        tag = voice['profile_tag']
+        stats['profile_distribution'][tag] = stats['profile_distribution'].get(tag, 0) + 1
+    
+    return safe_json_response({
+        'priority_voices': priority_voices,
+        'statistics': stats,
+        'analysis_config': {
+            'exposure_threshold': request.exposure_threshold,
+            'top_count': request.top_count,
+            'use_threshold': request.use_threshold,
+            'text_column': text_column,
+            'detected_columns': cyabra_columns
+        }
+    })
+
+@app.post("/save-analysis")
+async def save_analysis_session(request: SaveAnalysisRequest):
+    """Save an analysis session for later retrieval"""
+    try:
+        session_id = str(uuid.uuid4())
+        saved_id = db.save_analysis_session(
+            session_id,
+            request.document_id,
+            request.analysis_name,
+            request.analysis_type,
+            request.analysis_data
+        )
+        return {"saved_analysis_id": saved_id, "message": "Analysis saved successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving analysis: {str(e)}")
+
+@app.get("/saved-analyses")
+async def get_saved_analyses(document_id: Optional[str] = None):
+    """Get saved analysis sessions"""
+    try:
+        analyses = db.get_saved_analyses(document_id)
+        return safe_json_response({"saved_analyses": analyses})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving analyses: {str(e)}")
+
+@app.get("/saved-analyses/{analysis_id}")
+async def get_saved_analysis(analysis_id: str):
+    """Get a specific saved analysis session"""
+    try:
+        analysis = db.get_analysis_session(analysis_id)
+        if not analysis:
+            raise HTTPException(status_code=404, detail="Analysis session not found")
+        return safe_json_response(analysis)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving analysis: {str(e)}")
+
+@app.delete("/saved-analyses/{analysis_id}")
+async def delete_saved_analysis(analysis_id: str):
+    """Delete a saved analysis session"""
+    try:
+        db.delete_analysis_session(analysis_id)
+        return {"message": "Analysis deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting analysis: {str(e)}")
+
 @app.get("/")
 async def root():
     return {"message": "MEIO Sentiment Analysis API", "status": "active"}
+
+@app.get("/test")
+async def test_endpoint():
+    """Simple test endpoint to verify API connectivity"""
+    print("Test endpoint called successfully")
+    return {"status": "success", "message": "API is working", "timestamp": datetime.now().isoformat()}
+
+@app.post("/test-upload")
+async def test_upload(file: UploadFile = File(...)):
+    """Minimal upload test"""
+    print(f"Test upload called with file: {file.filename}")
+    try:
+        contents = await file.read()
+        print(f"File size: {len(contents)} bytes")
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "size": len(contents),
+            "message": "File received successfully"
+        }
+    except Exception as e:
+        print(f"Test upload error: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.get("/debug/sessions")
 async def debug_sessions():

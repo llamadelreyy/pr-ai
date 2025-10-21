@@ -1,0 +1,17 @@
+text,max_exp,tag,author_url,content_url,source,date
+"This new government policy is absolutely terrible and will hurt everyone. The administration has no idea what they're doing!",785432.1234,REAL_PROFILE,https://twitter.com/critic_user1,https://twitter.com/critic_user1/status/123456789,Twitter,2024-01-15
+"Excellent leadership and vision shown in these new initiatives. Great work by the team!",456789.9876,REAL_PROFILE,https://facebook.com/supporter2,https://facebook.com/supporter2/posts/987654321,Facebook,2024-01-16
+"I'm concerned about the economic implications of this policy direction",892345.4567,FAKE_PROFILE,https://twitter.com/bot_account3,https://twitter.com/bot_account3/status/456789012,Twitter,2024-01-17
+"The strategic approach demonstrates excellent planning and execution",234567.8901,UNTAGGED,https://linkedin.com/company/analyst_firm,https://linkedin.com/company/analyst_firm/post/789012345,LinkedIn,2024-01-18
+"This is a disaster waiting to happen. Poor decision making at its worst!",1234567.5432,REAL_PROFILE,https://twitter.com/angry_citizen,https://twitter.com/angry_citizen/status/234567890,Twitter,2024-01-19
+"Outstanding progress on foreign relations and diplomatic initiatives",345678.2109,REAL_PROFILE,https://facebook.com/diplomat_fan,https://facebook.com/diplomat_fan/posts/345678901,Facebook,2024-01-20
+"Not sure about the effectiveness of this approach in the long term",567890.3456,FAKE_PROFILE,https://twitter.com/uncertainty_bot,https://twitter.com/uncertainty_bot/status/567890123,Twitter,2024-01-21
+"Brilliant strategic move that will strengthen our international position significantly",678901.7890,UNTAGGED,https://reuters.com/analysis,https://reuters.com/article/policy-analysis-123,Reuters,2024-01-22
+"There are serious issues with this policy that need immediate attention",912345.1111,REAL_PROFILE,https://twitter.com/policy_critic,https://twitter.com/policy_critic/status/678901234,Twitter,2024-01-23
+"Impressive results from the new economic programs and initiatives",123456.2222,REAL_PROFILE,https://linkedin.com/economist_pro,https://linkedin.com/economist_pro/post/890123456,LinkedIn,2024-01-24
+"The situation requires very careful monitoring and immediate action",432109.8765,FAKE_PROFILE,https://twitter.com/monitor_bot,https://twitter.com/monitor_bot/status/789012345,Twitter,2024-01-25
+"Completely disagree with this direction. This will damage our reputation!",1567890.9999,REAL_PROFILE,https://facebook.com/concerned_voter,https://facebook.com/concerned_voter/posts/456789012,Facebook,2024-01-26
+"Fantastic leadership in these challenging times. Keep up the excellent work!",654321.5555,REAL_PROFILE,https://twitter.com/supporter_real,https://twitter.com/supporter_real/status/890123456,Twitter,2024-01-27
+"The economic data shows mixed results that warrant further investigation",789012.3333,UNTAGGED,https://bloomberg.com/analyst,https://bloomberg.com/article/economic-analysis-456,Bloomberg,2024-01-28
+"This policy is fundamentally flawed and shows complete misunderstanding",2100000.7777,REAL_PROFILE,https://twitter.com/major_critic,https://twitter.com/major_critic/status/901234567,Twitter,2024-01-29
+"Strong positive momentum in diplomatic relations and trade agreements",345987.1234,REAL_PROFILE,https://linkedin.com/trade_expert,https://linkedin.com/trade_expert/post/012345678,LinkedIn,2024-01-30

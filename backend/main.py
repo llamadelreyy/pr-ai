@@ -99,7 +99,7 @@ class SaveAnalysisRequest(BaseModel):
 
 def detect_cyabra_columns(data):
     """
-    Detect Cyabra-style export columns including max_exp, tag, author_url, content_url
+    Detect Cyabra-style export columns including max_exp, tag, author_url, content_url, and engagement metrics
     """
     if not data or len(data) == 0:
         return {}
@@ -149,6 +149,59 @@ def detect_cyabra_columns(data):
                 detected_columns['content_url_column'] = col
                 break
         if 'content_url_column' in detected_columns:
+            break
+    
+    # Look for engagement metrics columns
+    engagement_columns = {}
+    
+    # Likes columns
+    likes_patterns = [r'.*likes.*', r'.*like.*count.*', r'.*favorite.*', r'.*heart.*']
+    for col in df_temp.columns:
+        col_lower = col.lower()
+        for pattern in likes_patterns:
+            if re.match(pattern, col_lower):
+                engagement_columns['likes'] = col
+                break
+    
+    # Shares/Retweets columns
+    shares_patterns = [r'.*share.*', r'.*retweet.*', r'.*rt.*count.*', r'.*reshare.*']
+    for col in df_temp.columns:
+        col_lower = col.lower()
+        for pattern in shares_patterns:
+            if re.match(pattern, col_lower):
+                engagement_columns['shares'] = col
+                break
+    
+    # Comments/Replies columns
+    comments_patterns = [r'.*comment.*', r'.*reply.*', r'.*response.*']
+    for col in df_temp.columns:
+        col_lower = col.lower()
+        for pattern in comments_patterns:
+            if re.match(pattern, col_lower) and 'generated' not in col_lower:
+                engagement_columns['comments'] = col
+                break
+    
+    # Views/Impressions columns
+    views_patterns = [r'.*view.*', r'.*impression.*', r'.*seen.*']
+    for col in df_temp.columns:
+        col_lower = col.lower()
+        for pattern in views_patterns:
+            if re.match(pattern, col_lower):
+                engagement_columns['views'] = col
+                break
+    
+    if engagement_columns:
+        detected_columns['engagement_columns'] = engagement_columns
+    
+    # Look for author name columns
+    author_name_patterns = [r'.*author.*name.*', r'.*user.*name.*', r'.*username.*', r'.*handle.*', r'.*account.*name.*']
+    for col in df_temp.columns:
+        col_lower = col.lower()
+        for pattern in author_name_patterns:
+            if re.match(pattern, col_lower):
+                detected_columns['author_name_column'] = col
+                break
+        if 'author_name_column' in detected_columns:
             break
     
     return detected_columns
@@ -748,6 +801,35 @@ async def analyze_sentiment(request: SentimentRequest):
                 print(f"Row {i}: Failed to extract from {exposure_column} {row.get(exposure_column)}: {e}")
                 exposure_score = 0.0
         
+        # Extract engagement metrics
+        engagement_data = {}
+        engagement_columns = cyabra_columns.get('engagement_columns', {})
+        
+        for metric, column in engagement_columns.items():
+            if column and column in row:
+                try:
+                    raw_value = row[column]
+                    if raw_value is not None and str(raw_value).strip() not in ['', 'nan', 'None']:
+                        if isinstance(raw_value, str):
+                            clean_value = raw_value.replace(',', '').replace(' ', '').strip()
+                            engagement_data[metric] = int(float(clean_value)) if clean_value else 0
+                        else:
+                            engagement_data[metric] = int(float(raw_value))
+                    else:
+                        engagement_data[metric] = 0
+                except (ValueError, TypeError):
+                    engagement_data[metric] = 0
+            else:
+                engagement_data[metric] = 0
+        
+        # Extract author name
+        author_name_column = cyabra_columns.get('author_name_column')
+        author_name = ""
+        if author_name_column and author_name_column in row:
+            author_name = str(row.get(author_name_column, ''))
+        elif 'author_name' in row:
+            author_name = str(row.get('author_name', ''))
+        
         # Always include the original max_exp value in the response for debugging
         if 'max_exp' in row:
             analyzed_row['max_exp_original'] = row['max_exp']
@@ -756,6 +838,10 @@ async def analyze_sentiment(request: SentimentRequest):
         analyzed_row['profile_tag'] = str(row.get(tag_column, 'UNTAGGED')).upper() if tag_column and tag_column in row else 'UNTAGGED'
         analyzed_row['author_url'] = str(row.get(author_url_column, '')) if author_url_column and author_url_column in row else ''
         analyzed_row['content_url'] = str(row.get(content_url_column, '')) if content_url_column and content_url_column in row else ''
+        analyzed_row['author_name'] = author_name
+        
+        # Add engagement metrics
+        analyzed_row.update(engagement_data)
         
         analyzed_data.append(analyzed_row)
     
@@ -802,6 +888,20 @@ async def analyze_sentiment(request: SentimentRequest):
         tag = row.get('profile_tag', 'UNTAGGED')
         profile_distribution[tag] = profile_distribution.get(tag, 0) + 1
     
+    # Calculate engagement statistics
+    engagement_stats = {}
+    engagement_columns = cyabra_columns.get('engagement_columns', {})
+    
+    for metric, column in engagement_columns.items():
+        metric_values = [row.get(metric, 0) for row in analyzed_data]
+        if metric_values:
+            engagement_stats[metric] = {
+                'total': sum(metric_values),
+                'max': max(metric_values),
+                'avg': sum(metric_values) / len(metric_values),
+                'column_name': column
+            }
+    
     # Use safe JSON response
     return safe_json_response({
         "analyzed_data": analyzed_data,
@@ -810,6 +910,7 @@ async def analyze_sentiment(request: SentimentRequest):
         "average_confidence": avg_confidence,
         "exposure_statistics": exposure_stats,
         "profile_distribution": profile_distribution,
+        "engagement_statistics": engagement_stats,
         "cyabra_columns_detected": cyabra_columns,
         "text_column": text_column
     })

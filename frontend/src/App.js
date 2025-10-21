@@ -1739,7 +1739,7 @@ function App() {
                 marginBottom: '1rem'
               }}
             />
-            <LoginTitle>MCMC Sentiment Analysis</LoginTitle>
+            <LoginTitle>NAICIC AI</LoginTitle>
             <LoginSubtitle>Malaysian Communications and Multimedia Commission</LoginSubtitle>
           </LoginHeader>
           
@@ -1903,64 +1903,12 @@ function App() {
           {/* Dashboard */}
           {activeNav === 'dashboard' && (
             <div>
-              <StatsGrid>
-                <StatCard>
-                  <StatNumber color="#2596be">{documents.length}</StatNumber>
-                  <StatLabel>Total Documents</StatLabel>
-                </StatCard>
-                <StatCard>
-                  <StatNumber color="#10b981">{documents.filter(d => d.status === 'completed').length}</StatNumber>
-                  <StatLabel>Completed Analysis</StatLabel>
-                </StatCard>
-                <StatCard>
-                  <StatNumber color="#f59e0b">{documents.filter(d => d.status === 'analyzed').length}</StatNumber>
-                  <StatLabel>Awaiting Response</StatLabel>
-                </StatCard>
-                <StatCard>
-                  <StatNumber color="#ef4444">{documents.filter(d => d.status === 'uploaded').length}</StatNumber>
-                  <StatLabel>Pending Analysis</StatLabel>
-                </StatCard>
-              </StatsGrid>
-
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem'}}>
-                <Card>
-                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937'}}>Recent Documents</h2>
-                  {documents.length === 0 ? (
-                    <p style={{color: '#6b7280', textAlign: 'center', padding: '2rem'}}>
-                      No documents uploaded yet. Start by uploading a document.
-                    </p>
-                  ) : (
-                    documents.slice(0, 5).map((doc, index) => (
-                      <DocumentCard key={`dashboard-doc-${doc.id || doc.session_id || index}`}>
-                        <DocumentHeader>
-                          <div>
-                            <DocumentTitle>{doc.filename}</DocumentTitle>
-                            <DocumentMeta>
-                              Uploaded: {new Date(doc.upload_date).toLocaleDateString()} |
-                              Rows: {doc.row_count} |
-                              Status: <StatusBadge $status={doc.status}>{doc.status}</StatusBadge>
-                            </DocumentMeta>
-                          </div>
-                          <div style={{display: 'flex', gap: '0.5rem'}}>
-                            <Button $variant="secondary" onClick={() => viewDocument(doc.session_id || doc.id)}>
-                              <Eye size={16} />
-                              View
-                            </Button>
-                          </div>
-                        </DocumentHeader>
-                      </DocumentCard>
-                    ))
-                  )}
-                </Card>
-
-                <Card>
-                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937', display: 'flex', alignItems: 'center'}}>
-                    <Database size={20} style={{marginRight: '0.5rem'}} />
-                    Saved Analyses
-                  </h2>
-                  
-                  <FormGroup>
-                    <Label>Quick Load Analysis</Label>
+              {/* Saved Analyses Dropdown */}
+              <Card style={{marginBottom: '1rem', padding: '1rem'}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
+                  <Database size={20} style={{color: '#2596be'}} />
+                  <div style={{flex: 1}}>
+                    <Label style={{marginBottom: '0.5rem'}}>Load Saved Analysis</Label>
                     <div style={{display: 'flex', gap: '0.5rem'}}>
                       <Select
                         value={selectedSavedAnalysis}
@@ -1987,179 +1935,325 @@ function App() {
                         Load
                       </Button>
                     </div>
-                  </FormGroup>
+                  </div>
+                </div>
+              </Card>
 
-                  {savedAnalyses.length === 0 ? (
-                    <p style={{color: '#6b7280', textAlign: 'center', padding: '2rem'}}>
-                      No saved analyses yet. Complete an analysis to save it.
-                    </p>
-                  ) : (
-                    <div style={{maxHeight: '300px', overflowY: 'auto'}}>
-                      {savedAnalyses.slice(0, 5).map((analysis, index) => (
-                        <DocumentCard key={`saved-analysis-card-${analysis.id || index}`} style={{marginBottom: '1rem'}}>
-                          <DocumentHeader>
-                            <div>
-                              <DocumentTitle style={{fontSize: '1rem'}}>{analysis.analysis_name}</DocumentTitle>
-                              <DocumentMeta>
-                                Type: {analysis.analysis_type} |
-                                Created: {new Date(analysis.created_date).toLocaleDateString()}
-                              </DocumentMeta>
-                            </div>
-                            <div style={{display: 'flex', gap: '0.5rem'}}>
-                              <Button
-                                $variant="secondary"
-                                style={{padding: '0.5rem'}}
-                                onClick={() => loadSavedAnalysis(analysis.id)}
-                              >
-                                <RefreshCw size={14} />
-                              </Button>
-                              <Button
-                                $variant="danger"
-                                style={{padding: '0.5rem'}}
-                                onClick={() => deleteSavedAnalysis(analysis.id)}
-                              >
-                                <Trash2 size={14} />
-                              </Button>
-                            </div>
-                          </DocumentHeader>
-                        </DocumentCard>
-                      ))}
-                    </div>
-                  )}
-                </Card>
-              </div>
-
-              {/* Dashboard Visualizations for Loaded Analysis */}
-              {(analysisResults || influentialVoices || responses) && (
-                <div style={{marginTop: '2rem'}}>
-                  <h2 style={{marginBottom: '1.5rem', color: '#1f2937', display: 'flex', alignItems: 'center'}}>
-                    <BarChart3 size={20} style={{marginRight: '0.5rem'}} />
-                    Analysis Visualizations
-                  </h2>
-                  
-                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem'}}>
-                    {/* Sentiment Distribution Chart */}
-                    {analysisResults && (
-                      <ChartContainer>
-                        <ChartTitle>Sentiment Distribution</ChartTitle>
-                        <PieChartContainer>
-                          <PieChart colors={`
-                            #10b981 0deg ${(analysisResults.statistics?.positive || 0) / (analysisResults.analyzed_data?.length || 1) * 360}deg,
-                            #ef4444 ${(analysisResults.statistics?.positive || 0) / (analysisResults.analyzed_data?.length || 1) * 360}deg ${((analysisResults.statistics?.positive || 0) + (analysisResults.statistics?.negative || 0)) / (analysisResults.analyzed_data?.length || 1) * 360}deg,
-                            #6b7280 ${((analysisResults.statistics?.positive || 0) + (analysisResults.statistics?.negative || 0)) / (analysisResults.analyzed_data?.length || 1) * 360}deg 360deg
-                          `}>
-                            <PieCenter>
+              {/* Main Dashboard Content */}
+              {(analysisResults || influentialVoices || responses) ? (
+                <div>
+                  {/* Main Statistics Grid */}
+                  {analysisResults && (
+                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '2rem'}}>
+                      {/* Large Sentiment Distribution Chart */}
+                      <ChartContainer style={{gridColumn: 'span 2', minHeight: '400px'}}>
+                        <ChartTitle style={{fontSize: '1.5rem', marginBottom: '2rem'}}>Sentiment Distribution Analysis</ChartTitle>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '3rem'}}>
+                          <PieChart
+                            style={{width: '200px', height: '200px'}}
+                            colors={`
+                              #10b981 0deg ${(analysisResults.statistics?.positive || 0) / (analysisResults.analyzed_data?.length || 1) * 360}deg,
+                              #ef4444 ${(analysisResults.statistics?.positive || 0) / (analysisResults.analyzed_data?.length || 1) * 360}deg ${((analysisResults.statistics?.positive || 0) + (analysisResults.statistics?.negative || 0)) / (analysisResults.analyzed_data?.length || 1) * 360}deg,
+                              #6b7280 ${((analysisResults.statistics?.positive || 0) + (analysisResults.statistics?.negative || 0)) / (analysisResults.analyzed_data?.length || 1) * 360}deg 360deg
+                            `}
+                          >
+                            <PieCenter style={{width: '100px', height: '100px', fontSize: '1.2rem'}}>
                               {analysisResults.analyzed_data?.length || 0}
                             </PieCenter>
                           </PieChart>
-                          <LegendContainer>
-                            <LegendItem>
-                              <LegendColor color="#10b981" />
-                              Positive: {analysisResults.statistics?.positive || 0}
-                            </LegendItem>
-                            <LegendItem>
-                              <LegendColor color="#ef4444" />
-                              Negative: {analysisResults.statistics?.negative || 0}
-                            </LegendItem>
-                            <LegendItem>
-                              <LegendColor color="#6b7280" />
-                              Neutral: {analysisResults.statistics?.neutral || 0}
-                            </LegendItem>
-                          </LegendContainer>
-                        </PieChartContainer>
-                      </ChartContainer>
-                    )}
-
-                    {/* Exposure Score Distribution */}
-                    {analysisResults?.exposure_statistics && (
-                      <ChartContainer>
-                        <ChartTitle>Exposure Score Analysis</ChartTitle>
-                        <BarChart>
-                          <BarItem>
-                            <BarLabel>Max Exposure</BarLabel>
-                            <BarContainer>
-                              <BarFill
-                                color="#f59e0b"
-                                percentage={100}
-                              />
-                            </BarContainer>
-                            <BarValue>{analysisResults.exposure_statistics.max_exposure?.toLocaleString()}</BarValue>
-                          </BarItem>
-                          <BarItem>
-                            <BarLabel>Avg Exposure</BarLabel>
-                            <BarContainer>
-                              <BarFill
-                                color="#8b5cf6"
-                                percentage={(analysisResults.exposure_statistics.avg_exposure / analysisResults.exposure_statistics.max_exposure) * 100}
-                              />
-                            </BarContainer>
-                            <BarValue>{analysisResults.exposure_statistics.avg_exposure?.toLocaleString()}</BarValue>
-                          </BarItem>
-                          <BarItem>
-                            <BarLabel>Total Exposure</BarLabel>
-                            <BarContainer>
-                              <BarFill
-                                color="#2596be"
-                                percentage={80}
-                              />
-                            </BarContainer>
-                            <BarValue>{analysisResults.exposure_statistics.total_exposure?.toLocaleString()}</BarValue>
-                          </BarItem>
-                        </BarChart>
-                      </ChartContainer>
-                    )}
-
-                    {/* Profile Distribution Chart */}
-                    {analysisResults?.profile_distribution && (
-                      <ChartContainer>
-                        <ChartTitle>Profile Type Distribution</ChartTitle>
-                        <BarChart>
-                          {Object.entries(analysisResults.profile_distribution).map(([profile, count], index) => {
-                            const colors = ['#10b981', '#ef4444', '#f59e0b', '#8b5cf6'];
-                            const maxCount = Math.max(...Object.values(analysisResults.profile_distribution));
-                            return (
-                              <BarItem key={profile}>
-                                <BarLabel>{profile}</BarLabel>
-                                <BarContainer>
-                                  <BarFill
-                                    color={colors[index % colors.length]}
-                                    percentage={(count / maxCount) * 100}
-                                  />
-                                </BarContainer>
-                                <BarValue>{count}</BarValue>
-                              </BarItem>
-                            );
-                          })}
-                        </BarChart>
-                      </ChartContainer>
-                    )}
-
-                    {/* Influential Voices Summary */}
-                    {influentialVoices && (
-                      <ChartContainer>
-                        <ChartTitle>Influential Voices Summary</ChartTitle>
-                        <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                          <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                            <span style={{color: '#6b7280'}}>Priority Voices:</span>
-                            <strong>{influentialVoices.statistics?.priority_voices || 0}</strong>
-                          </div>
-                          <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                            <span style={{color: '#6b7280'}}>Negative High-Impact:</span>
-                            <strong style={{color: '#ef4444'}}>{influentialVoices.statistics?.negative_priority_voices || 0}</strong>
-                          </div>
-                          <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                            <span style={{color: '#6b7280'}}>Max Exposure:</span>
-                            <strong>{influentialVoices.statistics?.exposure_stats?.max_exposure?.toLocaleString() || '0'}</strong>
-                          </div>
-                          <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                            <span style={{color: '#6b7280'}}>Counter-Statements:</span>
-                            <strong style={{color: '#10b981'}}>{influentialVoices.priority_voices?.filter(v => v.counter_statement && v.counter_statement !== '').length || 0}</strong>
+                          <div style={{flex: 1}}>
+                            <StatsGrid style={{gridTemplateColumns: '1fr', gap: '1rem'}}>
+                              <StatCard>
+                                <StatNumber color="#10b981">{analysisResults.statistics?.positive || 0}</StatNumber>
+                                <StatLabel>Positive ({analysisResults.analyzed_data?.length > 0 ? (((analysisResults.statistics?.positive || 0) / analysisResults.analyzed_data.length) * 100).toFixed(1) : '0.0'}%)</StatLabel>
+                              </StatCard>
+                              <StatCard>
+                                <StatNumber color="#ef4444">{analysisResults.statistics?.negative || 0}</StatNumber>
+                                <StatLabel>Negative ({analysisResults.analyzed_data?.length > 0 ? (((analysisResults.statistics?.negative || 0) / analysisResults.analyzed_data.length) * 100).toFixed(1) : '0.0'}%)</StatLabel>
+                              </StatCard>
+                              <StatCard>
+                                <StatNumber color="#6b7280">{analysisResults.statistics?.neutral || 0}</StatNumber>
+                                <StatLabel>Neutral ({analysisResults.analyzed_data?.length > 0 ? (((analysisResults.statistics?.neutral || 0) / analysisResults.analyzed_data.length) * 100).toFixed(1) : '0.0'}%)</StatLabel>
+                              </StatCard>
+                            </StatsGrid>
                           </div>
                         </div>
                       </ChartContainer>
-                    )}
-                  </div>
+
+                      {/* Exposure Score Analysis */}
+                      {analysisResults?.exposure_statistics && (
+                        <ChartContainer style={{minHeight: '300px'}}>
+                          <ChartTitle style={{fontSize: '1.2rem'}}>Exposure Score Metrics</ChartTitle>
+                          <BarChart>
+                            <BarItem>
+                              <BarLabel>Max Exposure</BarLabel>
+                              <BarContainer>
+                                <BarFill color="#f59e0b" percentage={100} />
+                              </BarContainer>
+                              <BarValue>{analysisResults.exposure_statistics.max_exposure?.toLocaleString()}</BarValue>
+                            </BarItem>
+                            <BarItem>
+                              <BarLabel>Avg Exposure</BarLabel>
+                              <BarContainer>
+                                <BarFill
+                                  color="#8b5cf6"
+                                  percentage={(analysisResults.exposure_statistics.avg_exposure / analysisResults.exposure_statistics.max_exposure) * 100}
+                                />
+                              </BarContainer>
+                              <BarValue>{Math.round(analysisResults.exposure_statistics.avg_exposure).toLocaleString()}</BarValue>
+                            </BarItem>
+                            <BarItem>
+                              <BarLabel>Total Exposure</BarLabel>
+                              <BarContainer>
+                                <BarFill color="#2596be" percentage={80} />
+                              </BarContainer>
+                              <BarValue>{analysisResults.exposure_statistics.total_exposure?.toLocaleString()}</BarValue>
+                            </BarItem>
+                          </BarChart>
+                        </ChartContainer>
+                      )}
+
+                      {/* Profile Distribution */}
+                      {analysisResults?.profile_distribution && (
+                        <ChartContainer style={{minHeight: '300px'}}>
+                          <ChartTitle style={{fontSize: '1.2rem'}}>Profile Type Distribution</ChartTitle>
+                          <BarChart>
+                            {Object.entries(analysisResults.profile_distribution).map(([profile, count], index) => {
+                              const colors = ['#10b981', '#ef4444', '#f59e0b', '#8b5cf6'];
+                              const maxCount = Math.max(...Object.values(analysisResults.profile_distribution));
+                              return (
+                                <BarItem key={profile}>
+                                  <BarLabel>{profile}</BarLabel>
+                                  <BarContainer>
+                                    <BarFill
+                                      color={colors[index % colors.length]}
+                                      percentage={(count / maxCount) * 100}
+                                    />
+                                  </BarContainer>
+                                  <BarValue>{count}</BarValue>
+                                </BarItem>
+                              );
+                            })}
+                          </BarChart>
+                        </ChartContainer>
+                      )}
+
+                      {/* Engagement Metrics */}
+                      {analysisResults?.engagement_statistics && Object.keys(analysisResults.engagement_statistics).length > 0 && (
+                        <ChartContainer style={{minHeight: '300px'}}>
+                          <ChartTitle style={{fontSize: '1.2rem'}}>Total Engagement Metrics</ChartTitle>
+                          <BarChart>
+                            {Object.entries(analysisResults.engagement_statistics).map(([metric, stats], index) => {
+                              const colors = ['#2596be', '#10b981', '#f59e0b', '#8b5cf6'];
+                              const maxValue = Math.max(...Object.values(analysisResults.engagement_statistics).map(s => s.total));
+                              const icons = {
+                                'likes': '👍',
+                                'shares': '🔄',
+                                'comments': '💬',
+                                'views': '👁️'
+                              };
+                              return (
+                                <BarItem key={metric}>
+                                  <BarLabel style={{textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                                    <span>{icons[metric] || '📊'}</span>
+                                    {metric}
+                                  </BarLabel>
+                                  <BarContainer>
+                                    <BarFill
+                                      color={colors[index % colors.length]}
+                                      percentage={(stats.total / maxValue) * 100}
+                                    />
+                                  </BarContainer>
+                                  <BarValue>{stats.total.toLocaleString()}</BarValue>
+                                </BarItem>
+                              );
+                            })}
+                          </BarChart>
+                          <div style={{marginTop: '1rem', fontSize: '0.875rem', color: '#6b7280'}}>
+                            <strong>Engagement Performance:</strong> Total interactions across all posts
+                          </div>
+                        </ChartContainer>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Filterable Data Lists */}
+                  {analysisResults && (
+                    <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginTop: '2rem'}}>
+                      {/* Sentiment Filtered List */}
+                      <ChartContainer style={{minHeight: '500px'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+                          <ChartTitle style={{fontSize: '1.2rem', margin: 0}}>Posts by Sentiment</ChartTitle>
+                          <Select
+                            value={filterSentiment}
+                            onChange={(e) => setFilterSentiment(e.target.value)}
+                            style={{width: 'auto', minWidth: '120px'}}
+                          >
+                            <option value="all">All</option>
+                            <option value="negative">Negative</option>
+                            <option value="positive">Positive</option>
+                            <option value="neutral">Neutral</option>
+                          </Select>
+                        </div>
+                        <div style={{maxHeight: '400px', overflowY: 'auto'}}>
+                          {analysisResults.analyzed_data
+                            ?.filter(row => filterSentiment === 'all' || row.sentiment === filterSentiment)
+                            ?.slice(0, 10)
+                            ?.map((row, index) => {
+                              const textContent = Object.values(row).find(val =>
+                                typeof val === 'string' && val.length > 10 &&
+                                !['sentiment', 'confidence', 'topic', 'topics', 'exposure_score', 'profile_tag', 'author_url', 'content_url', 'max_exp'].includes(val)
+                              ) || 'No text content';
+                              
+                              let exposureScore = 0;
+                              if (row.max_exp !== undefined && row.max_exp !== null && row.max_exp !== '') {
+                                try {
+                                  exposureScore = typeof row.max_exp === 'string' ?
+                                    parseFloat(row.max_exp.replace(',', '')) :
+                                    parseFloat(row.max_exp);
+                                } catch (e) {
+                                  exposureScore = row.exposure_score || 0;
+                                }
+                              } else {
+                                exposureScore = row.exposure_score || 0;
+                              }
+
+                              return (
+                                <div key={index} style={{padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '8px', marginBottom: '0.5rem'}}>
+                                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem'}}>
+                                    <SentimentBadge $sentiment={row.sentiment}>
+                                      {getSentimentIcon(row.sentiment)}
+                                      {row.sentiment}
+                                    </SentimentBadge>
+                                    <span style={{fontSize: '0.875rem', color: '#f59e0b', fontWeight: '600'}}>
+                                      {exposureScore.toLocaleString()} exposure
+                                    </span>
+                                  </div>
+                                  <div style={{fontSize: '0.875rem', color: '#374151', lineHeight: '1.4'}}>
+                                    {String(textContent).substring(0, 120)}...
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </ChartContainer>
+
+                      {/* Enhanced Exposure Rankings with Author Names and Controls */}
+                      <ChartContainer style={{minHeight: '500px'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+                          <ChartTitle style={{fontSize: '1.2rem', margin: 0}}>Highest Exposure Rankings</ChartTitle>
+                          <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
+                            <Select
+                              value={filterSentiment}
+                              onChange={(e) => setFilterSentiment(e.target.value)}
+                              style={{width: 'auto', minWidth: '120px'}}
+                            >
+                              <option value="all">All Sentiments</option>
+                              <option value="negative">Negative Only</option>
+                              <option value="positive">Positive Only</option>
+                              <option value="neutral">Neutral Only</option>
+                            </Select>
+                            <Button
+                              $variant="secondary"
+                              style={{padding: '0.5rem'}}
+                              onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+                              title={`Sort exposure ${sortOrder === 'desc' ? 'ascending' : 'descending'}`}
+                            >
+                              {sortOrder === 'desc' ? <SortDesc size={16} /> : <SortAsc size={16} />}
+                            </Button>
+                          </div>
+                        </div>
+                        <div style={{maxHeight: '400px', overflowY: 'auto'}}>
+                          {analysisResults.analyzed_data
+                            ?.filter(row => filterSentiment === 'all' || row.sentiment === filterSentiment)
+                            ?.sort((a, b) => {
+                              const aExp = a.max_exp || a.exposure_score || 0;
+                              const bExp = b.max_exp || b.exposure_score || 0;
+                              const aExpNum = typeof aExp === 'string' ? parseFloat(aExp.replace(',', '')) : aExp;
+                              const bExpNum = typeof bExp === 'string' ? parseFloat(bExp.replace(',', '')) : bExp;
+                              return sortOrder === 'desc' ? bExpNum - aExpNum : aExpNum - bExpNum;
+                            })
+                            ?.slice(0, 15)
+                            ?.map((row, index) => {
+                              const textContent = Object.values(row).find(val =>
+                                typeof val === 'string' && val.length > 10 &&
+                                !['sentiment', 'confidence', 'topic', 'topics', 'exposure_score', 'profile_tag', 'author_url', 'content_url', 'max_exp', 'likes', 'shares', 'comments', 'views', 'author_name', 'source', 'date'].includes(val)
+                              ) || 'No text content';
+                              
+                              let exposureScore = 0;
+                              if (row.max_exp !== undefined && row.max_exp !== null && row.max_exp !== '') {
+                                try {
+                                  exposureScore = typeof row.max_exp === 'string' ?
+                                    parseFloat(row.max_exp.replace(',', '')) :
+                                    parseFloat(row.max_exp);
+                                } catch (e) {
+                                  exposureScore = row.exposure_score || 0;
+                                }
+                              } else {
+                                exposureScore = row.exposure_score || 0;
+                              }
+
+                              const authorName = row.author_name || row.author_url?.split('/').pop() || 'Unknown Author';
+
+                              return (
+                                <div key={index} style={{padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '8px', marginBottom: '0.5rem'}}>
+                                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem'}}>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                                      <span style={{fontSize: '1.2rem', fontWeight: '700', color: '#2596be'}}>#{index + 1}</span>
+                                      <SentimentBadge $sentiment={row.sentiment}>
+                                        {getSentimentIcon(row.sentiment)}
+                                        {row.sentiment}
+                                      </SentimentBadge>
+                                      <span style={{fontSize: '0.875rem', fontWeight: '600', color: '#1f2937'}}>
+                                        {authorName}
+                                      </span>
+                                    </div>
+                                    <span style={{fontSize: '1.1rem', color: '#f59e0b', fontWeight: '700'}}>
+                                      {exposureScore.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div style={{fontSize: '0.875rem', color: '#374151', lineHeight: '1.4', marginBottom: '0.5rem'}}>
+                                    {String(textContent).substring(0, 120)}...
+                                  </div>
+                                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                    <div style={{fontSize: '0.75rem', color: '#6b7280'}}>
+                                      {row.profile_tag || 'UNTAGGED'} • {row.source || 'Unknown'} • Confidence: {((row.confidence || 0) * 100).toFixed(1)}%
+                                    </div>
+                                    <div style={{display: 'flex', gap: '1rem', fontSize: '0.75rem', color: '#6b7280'}}>
+                                      {row.likes !== undefined && (
+                                        <span>👍 {(row.likes || 0).toLocaleString()}</span>
+                                      )}
+                                      {row.shares !== undefined && (
+                                        <span>🔄 {(row.shares || 0).toLocaleString()}</span>
+                                      )}
+                                      {row.comments !== undefined && (
+                                        <span>💬 {(row.comments || 0).toLocaleString()}</span>
+                                      )}
+                                      {row.views !== undefined && (
+                                        <span>👁️ {(row.views || 0).toLocaleString()}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </ChartContainer>
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <Card style={{textAlign: 'center', padding: '4rem'}}>
+                  <BarChart3 size={64} style={{color: '#d1d5db', margin: '0 auto 2rem'}} />
+                  <h2 style={{color: '#1f2937', marginBottom: '1rem'}}>No Analysis Data Available</h2>
+                  <p style={{color: '#6b7280', marginBottom: '2rem'}}>
+                    Upload a document and run analysis to see visualizations here, or load a saved analysis from the dropdown above.
+                  </p>
+                  <Button onClick={() => setActiveNav('data-upload')}>
+                    <Upload size={16} />
+                    Upload Document
+                  </Button>
+                </Card>
               )}
             </div>
           )}

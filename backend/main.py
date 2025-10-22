@@ -154,8 +154,8 @@ def detect_cyabra_columns(data):
     # Look for engagement metrics columns
     engagement_columns = {}
     
-    # Likes columns
-    likes_patterns = [r'.*likes.*', r'.*like.*count.*', r'.*favorite.*', r'.*heart.*']
+    # Likes columns (prioritize standard names)
+    likes_patterns = [r'^like_count$', r'^likes$', r'.*like.*count.*', r'.*favorite.*', r'.*heart.*']
     for col in df_temp.columns:
         col_lower = col.lower()
         for pattern in likes_patterns:
@@ -163,8 +163,8 @@ def detect_cyabra_columns(data):
                 engagement_columns['likes'] = col
                 break
     
-    # Shares/Retweets columns
-    shares_patterns = [r'.*share.*', r'.*retweet.*', r'.*rt.*count.*', r'.*reshare.*']
+    # Shares/Retweets columns (prioritize standard names)
+    shares_patterns = [r'^share_count$', r'^shares$', r'.*share.*count.*', r'.*retweet.*', r'.*rt.*count.*', r'.*reshare.*']
     for col in df_temp.columns:
         col_lower = col.lower()
         for pattern in shares_patterns:
@@ -172,13 +172,22 @@ def detect_cyabra_columns(data):
                 engagement_columns['shares'] = col
                 break
     
-    # Comments/Replies columns
-    comments_patterns = [r'.*comment.*', r'.*reply.*', r'.*response.*']
+    # Comments/Replies columns (prioritize standard names)
+    comments_patterns = [r'^comment_count$', r'^comments$', r'.*comment.*count.*', r'.*reply.*', r'.*response.*']
     for col in df_temp.columns:
         col_lower = col.lower()
         for pattern in comments_patterns:
             if re.match(pattern, col_lower) and 'generated' not in col_lower:
                 engagement_columns['comments'] = col
+                break
+    
+    # Total engagement column
+    engagement_patterns = [r'^engagement$', r'^total.*engagement.*', r'.*engagement.*total.*']
+    for col in df_temp.columns:
+        col_lower = col.lower()
+        for pattern in engagement_patterns:
+            if re.match(pattern, col_lower):
+                engagement_columns['total_engagement'] = col
                 break
     
     # Views/Impressions columns
@@ -801,12 +810,25 @@ async def analyze_sentiment(request: SentimentRequest):
                 print(f"Row {i}: Failed to extract from {exposure_column} {row.get(exposure_column)}: {e}")
                 exposure_score = 0.0
         
-        # Extract engagement metrics
+        # Extract engagement metrics with standard column name support
         engagement_data = {}
         engagement_columns = cyabra_columns.get('engagement_columns', {})
         
-        for metric, column in engagement_columns.items():
-            if column and column in row:
+        # Standard engagement columns with fallbacks
+        engagement_mappings = {
+            'likes': ['like_count', 'likes'],
+            'shares': ['share_count', 'shares'],
+            'comments': ['comment_count', 'comments'],
+            'views': ['views'],
+            'total_engagement': ['engagement', 'total_engagement']
+        }
+        
+        for metric, possible_columns in engagement_mappings.items():
+            engagement_data[metric] = 0
+            
+            # Try detected column first
+            if metric in engagement_columns and engagement_columns[metric] in row:
+                column = engagement_columns[metric]
                 try:
                     raw_value = row[column]
                     if raw_value is not None and str(raw_value).strip() not in ['', 'nan', 'None']:
@@ -815,12 +837,28 @@ async def analyze_sentiment(request: SentimentRequest):
                             engagement_data[metric] = int(float(clean_value)) if clean_value else 0
                         else:
                             engagement_data[metric] = int(float(raw_value))
-                    else:
-                        engagement_data[metric] = 0
                 except (ValueError, TypeError):
                     engagement_data[metric] = 0
             else:
-                engagement_data[metric] = 0
+                # Try standard column names as fallback
+                for col_name in possible_columns:
+                    if col_name in row:
+                        try:
+                            raw_value = row[col_name]
+                            if raw_value is not None and str(raw_value).strip() not in ['', 'nan', 'None']:
+                                if isinstance(raw_value, str):
+                                    clean_value = raw_value.replace(',', '').replace(' ', '').strip()
+                                    engagement_data[metric] = int(float(clean_value)) if clean_value else 0
+                                else:
+                                    engagement_data[metric] = int(float(raw_value))
+                                break
+                        except (ValueError, TypeError):
+                            continue
+        
+        # Calculate total engagement if not provided
+        if engagement_data.get('total_engagement', 0) == 0:
+            total_eng = engagement_data.get('likes', 0) + (engagement_data.get('shares', 0) * 2) + (engagement_data.get('comments', 0) * 3)
+            engagement_data['calculated_engagement'] = total_eng
         
         # Extract author name
         author_name_column = cyabra_columns.get('author_name_column')
@@ -900,6 +938,24 @@ async def analyze_sentiment(request: SentimentRequest):
                 'max': max(metric_values),
                 'avg': sum(metric_values) / len(metric_values),
                 'column_name': column
+            }
+    
+    # Calculate total engagement if not provided in data
+    if 'total_engagement' not in engagement_stats and len(engagement_stats) > 0:
+        total_engagement_values = []
+        for row in analyzed_data:
+            total_eng = 0
+            total_eng += row.get('likes', 0)
+            total_eng += row.get('shares', 0) * 2  # Weight shares higher
+            total_eng += row.get('comments', 0) * 3  # Weight comments highest
+            total_engagement_values.append(total_eng)
+        
+        if total_engagement_values:
+            engagement_stats['calculated_engagement'] = {
+                'total': sum(total_engagement_values),
+                'max': max(total_engagement_values),
+                'avg': sum(total_engagement_values) / len(total_engagement_values),
+                'column_name': 'Calculated (Likes + 2×Shares + 3×Comments)'
             }
     
     # Use safe JSON response

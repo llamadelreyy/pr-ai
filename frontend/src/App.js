@@ -1709,6 +1709,7 @@ function App() {
       case 'response-generation': return 'Response Generation';
       case 'report-generation': return 'Report Generation';
       case 'influential-voices': return 'Influential Voices Analysis';
+      case 'saved-analyses': return 'Saved Analyses Management';
       case 'user-management': return 'User Management';
       default: return 'MEIO Sentiment Analysis System';
     }
@@ -1861,6 +1862,15 @@ function App() {
           </NavItem>
           
           <NavItem
+            $active={activeNav === 'saved-analyses'}
+            $collapsed={sidebarCollapsed}
+            onClick={() => setActiveNav('saved-analyses')}
+          >
+            <Database size={20} />
+            <span>Saved Analyses</span>
+          </NavItem>
+          
+          <NavItem
             $active={activeNav === 'user-management'}
             $collapsed={sidebarCollapsed}
             onClick={() => setActiveNav('user-management')}
@@ -1962,7 +1972,7 @@ function App() {
                             </PieCenter>
                           </PieChart>
                           <div style={{flex: 1}}>
-                            <StatsGrid style={{gridTemplateColumns: '1fr', gap: '1rem'}}>
+                            <StatsGrid style={{gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem'}}>
                               <StatCard>
                                 <StatNumber color="#10b981">{analysisResults.statistics?.positive || 0}</StatNumber>
                                 <StatLabel>Positive ({analysisResults.analyzed_data?.length > 0 ? (((analysisResults.statistics?.positive || 0) / analysisResults.analyzed_data.length) * 100).toFixed(1) : '0.0'}%)</StatLabel>
@@ -1974,6 +1984,10 @@ function App() {
                               <StatCard>
                                 <StatNumber color="#6b7280">{analysisResults.statistics?.neutral || 0}</StatNumber>
                                 <StatLabel>Neutral ({analysisResults.analyzed_data?.length > 0 ? (((analysisResults.statistics?.neutral || 0) / analysisResults.analyzed_data.length) * 100).toFixed(1) : '0.0'}%)</StatLabel>
+                              </StatCard>
+                              <StatCard>
+                                <StatNumber>{analysisResults.average_confidence && !isNaN(analysisResults.average_confidence) ? (analysisResults.average_confidence * 100).toFixed(1) : '0.0'}%</StatNumber>
+                                <StatLabel>Avg Confidence</StatLabel>
                               </StatCard>
                             </StatsGrid>
                           </div>
@@ -2038,25 +2052,67 @@ function App() {
                         </ChartContainer>
                       )}
 
-                      {/* Engagement Metrics */}
+                      {/* Standard Engagement Metrics */}
                       {analysisResults?.engagement_statistics && Object.keys(analysisResults.engagement_statistics).length > 0 && (
-                        <ChartContainer style={{minHeight: '300px'}}>
-                          <ChartTitle style={{fontSize: '1.2rem'}}>Total Engagement Metrics</ChartTitle>
+                        <ChartContainer style={{gridColumn: 'span 2', minHeight: '350px'}}>
+                          <ChartTitle style={{fontSize: '1.5rem', marginBottom: '2rem'}}>Engagement Metrics Analysis</ChartTitle>
+                          
+                          {/* Engagement Statistics Grid */}
+                          <StatsGrid style={{gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '2rem'}}>
+                            {Object.entries(analysisResults.engagement_statistics).map(([metric, stats], index) => {
+                              const colors = ['#2596be', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
+                              const icons = {
+                                'likes': '👍',
+                                'shares': '🔄',
+                                'comments': '💬',
+                                'views': '👁️',
+                                'total_engagement': '📊',
+                                'calculated_engagement': '🔥'
+                              };
+                              const labels = {
+                                'likes': 'Total Likes',
+                                'shares': 'Total Shares',
+                                'comments': 'Total Comments',
+                                'views': 'Total Views',
+                                'total_engagement': 'Total Engagement',
+                                'calculated_engagement': 'Weighted Engagement'
+                              };
+                              
+                              return (
+                                <StatCard key={metric}>
+                                  <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem'}}>
+                                    <span style={{fontSize: '1.5rem', marginRight: '0.5rem'}}>{icons[metric] || '📊'}</span>
+                                  </div>
+                                  <StatNumber color={colors[index % colors.length]}>
+                                    {stats.total.toLocaleString()}
+                                  </StatNumber>
+                                  <StatLabel>{labels[metric] || metric}</StatLabel>
+                                  <div style={{fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem'}}>
+                                    Avg: {Math.round(stats.avg).toLocaleString()} | Max: {stats.max.toLocaleString()}
+                                  </div>
+                                </StatCard>
+                              );
+                            })}
+                          </StatsGrid>
+                          
+                          {/* Engagement Bar Chart */}
                           <BarChart>
                             {Object.entries(analysisResults.engagement_statistics).map(([metric, stats], index) => {
-                              const colors = ['#2596be', '#10b981', '#f59e0b', '#8b5cf6'];
+                              const colors = ['#2596be', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
                               const maxValue = Math.max(...Object.values(analysisResults.engagement_statistics).map(s => s.total));
                               const icons = {
                                 'likes': '👍',
                                 'shares': '🔄',
                                 'comments': '💬',
-                                'views': '👁️'
+                                'views': '👁️',
+                                'total_engagement': '📊',
+                                'calculated_engagement': '🔥'
                               };
                               return (
                                 <BarItem key={metric}>
-                                  <BarLabel style={{textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                                  <BarLabel style={{display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'capitalize'}}>
                                     <span>{icons[metric] || '📊'}</span>
-                                    {metric}
+                                    {metric.replace('_', ' ')}
                                   </BarLabel>
                                   <BarContainer>
                                     <BarFill
@@ -2069,8 +2125,9 @@ function App() {
                               );
                             })}
                           </BarChart>
-                          <div style={{marginTop: '1rem', fontSize: '0.875rem', color: '#6b7280'}}>
-                            <strong>Engagement Performance:</strong> Total interactions across all posts
+                          
+                          <div style={{marginTop: '1rem', fontSize: '0.875rem', color: '#6b7280', textAlign: 'center'}}>
+                            <strong>Engagement Source:</strong> Extracted from CSV columns (like_count, share_count, comment_count, engagement)
                           </div>
                         </ChartContainer>
                       )}
@@ -2220,17 +2277,17 @@ function App() {
                                       {row.profile_tag || 'UNTAGGED'} • {row.source || 'Unknown'} • Confidence: {((row.confidence || 0) * 100).toFixed(1)}%
                                     </div>
                                     <div style={{display: 'flex', gap: '1rem', fontSize: '0.75rem', color: '#6b7280'}}>
-                                      {row.likes !== undefined && (
-                                        <span>👍 {(row.likes || 0).toLocaleString()}</span>
+                                      {(row.like_count !== undefined || row.likes !== undefined) && (
+                                        <span>👍 {((row.like_count || row.likes) || 0).toLocaleString()}</span>
                                       )}
-                                      {row.shares !== undefined && (
-                                        <span>🔄 {(row.shares || 0).toLocaleString()}</span>
+                                      {(row.share_count !== undefined || row.shares !== undefined) && (
+                                        <span>🔄 {((row.share_count || row.shares) || 0).toLocaleString()}</span>
                                       )}
-                                      {row.comments !== undefined && (
-                                        <span>💬 {(row.comments || 0).toLocaleString()}</span>
+                                      {(row.comment_count !== undefined || row.comments !== undefined) && (
+                                        <span>💬 {((row.comment_count || row.comments) || 0).toLocaleString()}</span>
                                       )}
-                                      {row.views !== undefined && (
-                                        <span>👁️ {(row.views || 0).toLocaleString()}</span>
+                                      {(row.engagement !== undefined || row.calculated_engagement !== undefined) && (
+                                        <span>🔥 {((row.engagement || row.calculated_engagement) || 0).toLocaleString()}</span>
                                       )}
                                     </div>
                                   </div>
@@ -3108,6 +3165,110 @@ function App() {
                 </Card>
               )}
             </div>
+          )}
+
+          {/* Saved Analyses Management */}
+          {activeNav === 'saved-analyses' && (
+            <Card>
+              <h2 style={{marginBottom: '1.5rem', color: '#1f2937', display: 'flex', alignItems: 'center'}}>
+                <Database size={24} style={{marginRight: '0.5rem'}} />
+                Saved Analyses Management
+              </h2>
+              
+              <div style={{marginBottom: '1.5rem', padding: '1rem', background: '#f0f9ff', borderRadius: '8px', border: '1px solid #bfdbfe'}}>
+                <p style={{color: '#1e40af', fontSize: '0.875rem', margin: 0}}>
+                  Manage your saved analysis sessions. Load previous analyses or delete them to free up storage space.
+                </p>
+              </div>
+
+              {savedAnalyses.length === 0 ? (
+                <div style={{textAlign: 'center', padding: '4rem', color: '#6b7280'}}>
+                  <Database size={64} style={{margin: '0 auto 2rem', color: '#d1d5db'}} />
+                  <h3 style={{marginBottom: '1rem'}}>No Saved Analyses</h3>
+                  <p style={{marginBottom: '2rem'}}>Complete an analysis and save it to see it here.</p>
+                  <Button onClick={() => setActiveNav('data-analysis')}>
+                    <BarChart3 size={16} />
+                    Go to Analysis
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+                    <h3 style={{color: '#1f2937', margin: 0}}>Saved Analysis Sessions ({savedAnalyses.length})</h3>
+                    <Button
+                      $variant="secondary"
+                      onClick={loadSavedAnalyses}
+                      style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}
+                    >
+                      <RefreshCw size={16} />
+                      Refresh
+                    </Button>
+                  </div>
+
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.5rem'}}>
+                    {savedAnalyses.map((analysis, index) => (
+                      <DocumentCard key={`saved-analysis-mgmt-${analysis.id || index}`}>
+                        <DocumentHeader>
+                          <div style={{flex: 1}}>
+                            <DocumentTitle style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                              {analysis.analysis_type === 'sentiment' && <BarChart3 size={18} />}
+                              {analysis.analysis_type === 'influential_voices' && <Target size={18} />}
+                              {analysis.analysis_type === 'responses' && <Send size={18} />}
+                              {analysis.analysis_name}
+                            </DocumentTitle>
+                            <DocumentMeta>
+                              Type: <strong>{analysis.analysis_type.replace('_', ' ')}</strong> |
+                              Created: {new Date(analysis.created_date).toLocaleDateString()} |
+                              Document: {documents.find(d => d.session_id === analysis.document_id)?.filename || 'Unknown'}
+                            </DocumentMeta>
+                            <div style={{marginTop: '0.5rem', fontSize: '0.75rem', color: '#6b7280'}}>
+                              Session ID: {analysis.id}
+                            </div>
+                          </div>
+                          <div style={{display: 'flex', flexDirection: 'column', gap: '0.5rem'}}>
+                            <Button
+                              $variant="secondary"
+                              onClick={() => {
+                                loadSavedAnalysis(analysis.id);
+                                showMessage(`Loading analysis: ${analysis.analysis_name}`);
+                              }}
+                              style={{width: '100%'}}
+                            >
+                              <RefreshCw size={14} />
+                              Load
+                            </Button>
+                            <Button
+                              $variant="danger"
+                              onClick={() => {
+                                if (window.confirm(`Are you sure you want to delete "${analysis.analysis_name}"? This action cannot be undone.`)) {
+                                  deleteSavedAnalysis(analysis.id);
+                                }
+                              }}
+                              style={{width: '100%'}}
+                            >
+                              <Trash2 size={14} />
+                              Delete
+                            </Button>
+                          </div>
+                        </DocumentHeader>
+                        
+                        {/* Analysis Preview */}
+                        <div style={{marginTop: '1rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e5e7eb'}}>
+                          <div style={{fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem'}}>
+                            <strong>Analysis Preview:</strong>
+                          </div>
+                          <div style={{fontSize: '0.875rem', color: '#374151'}}>
+                            {analysis.analysis_type === 'sentiment' && '📊 Sentiment analysis with exposure scores and profile distribution'}
+                            {analysis.analysis_type === 'influential_voices' && '🎯 Influential voices identification with counter-statements'}
+                            {analysis.analysis_type === 'responses' && '💬 AI-generated responses for engagement strategy'}
+                          </div>
+                        </div>
+                      </DocumentCard>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Card>
           )}
 
           {/* User Management */}
